@@ -258,7 +258,7 @@ This order ensures the zone never has *fewer* rules than intended during sync.
 
 ## Linting
 
-52 lint rules with the `BN` prefix validate your rules offline before sync. See [docs/lint.md](docs/lint.md) for the full reference.
+53 lint rules with the `BN` prefix validate your rules offline before sync. See [docs/lint.md](docs/lint.md) for the full reference.
 
 ```bash
 octorules lint
