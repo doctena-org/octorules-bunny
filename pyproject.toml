@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "octorules-bunny"
+version = "0.1.0"
+description = "Bunny.net Shield WAF provider for octorules"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+readme = "README.md"
+authors = [
+    { name = "Martin Simon" },
+    { name = "Doctena S.A." },
+]
+keywords = ["bunny", "bunnynet", "shield", "waf", "rules", "iac", "octorules"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: System :: Networking :: Firewalls",
+    "Topic :: System :: Systems Administration",
+]
+dependencies = [
+    "octorules>=0.23.0",
+    "httpx>=0.24,<1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.4.0",
+    "yamllint>=1.35.0",
+    "build",
+]
+
+[project.urls]
+Homepage = "https://github.com/doctena-org/octorules-bunny"
+Repository = "https://github.com/doctena-org/octorules-bunny"
+Issues = "https://github.com/doctena-org/octorules-bunny/issues"
+
+[project.entry-points."octorules.providers"]
+bunny = "octorules_bunny:BunnyShieldProvider"
+
+[tool.setuptools.packages.find]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["RUF002", "RUF043"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
