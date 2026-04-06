@@ -249,7 +249,7 @@ class TestSeverity:
         assert "BN104" in _ids(validate_rules([_custom(severity="fatal")], phase=_C))
 
     def test_bn104_valid(self):
-        for s in ("info", "warning", "error", "critical"):
+        for s in ("info", "warning", "error"):
             assert "BN104" not in _ids(validate_rules([_custom(severity=s)], phase=_C))
 
 

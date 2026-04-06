@@ -80,16 +80,16 @@ class TestEdgeEnumRoundTrip:
             assert STR_TO_EDGE_TRIGGER_MATCH[str_val] == int_val
 
     def test_action_count(self):
-        assert len(EDGE_ACTION_TO_STR) == 15
+        assert len(EDGE_ACTION_TO_STR) == 35
 
     def test_trigger_count(self):
-        assert len(EDGE_TRIGGER_TO_STR) == 12
+        assert len(EDGE_TRIGGER_TO_STR) == 14
 
     def test_pattern_match_count(self):
         assert len(EDGE_PATTERN_MATCH_TO_STR) == 3
 
     def test_trigger_match_count(self):
-        assert len(EDGE_TRIGGER_MATCH_TO_STR) == 2
+        assert len(EDGE_TRIGGER_MATCH_TO_STR) == 3
 
     def test_no_duplicate_values(self):
         for mapping in (EDGE_ACTION_TO_STR, EDGE_TRIGGER_TO_STR):
@@ -122,7 +122,7 @@ class TestEdgeRuleNormalization:
         assert normalized["ref"] == "Force HTTPS"
         assert normalized["_api_id"] == "abc-def-123"
         assert normalized["action_type"] == "force_ssl"
-        assert normalized["trigger_matching_type"] == "all"
+        assert normalized["trigger_matching_type"] == "any"
         assert normalized["enabled"] is True
         assert len(normalized["triggers"]) == 1
         assert normalized["triggers"][0]["type"] == "url"
@@ -137,7 +137,7 @@ class TestEdgeRuleNormalization:
             "ActionParameter2": "",
             "Triggers": [
                 {
-                    "Type": 5,
+                    "Type": 4,
                     "PatternMatchingType": 0,
                     "PatternMatches": ["CN", "RU"],
                     "Parameter1": "",
@@ -155,7 +155,7 @@ class TestEdgeRuleNormalization:
     def test_redirect_rule_with_parameters(self):
         api_rule = {
             "Guid": "redir-guid",
-            "ActionType": 14,
+            "ActionType": 1,
             "ActionParameter1": "https://example.com/new",
             "ActionParameter2": "301",
             "Triggers": [
@@ -171,7 +171,7 @@ class TestEdgeRuleNormalization:
             "Enabled": False,
         }
         normalized = _normalize_edge_rule(api_rule)
-        assert normalized["action_type"] == "redirect_to_url"
+        assert normalized["action_type"] == "redirect"
         assert normalized["action_parameter_1"] == "https://example.com/new"
         assert normalized["action_parameter_2"] == "301"
         assert normalized["enabled"] is False
@@ -191,7 +191,7 @@ class TestEdgeRuleNormalization:
                     "Parameter1": "",
                 },
                 {
-                    "Type": 10,
+                    "Type": 9,
                     "PatternMatchingType": 0,
                     "PatternMatches": ["GET"],
                     "Parameter1": "",
@@ -214,7 +214,7 @@ class TestEdgeRuleNormalization:
         assert len(denormalized["Triggers"]) == 2
         assert denormalized["Triggers"][0]["Type"] == 0
         assert denormalized["Triggers"][0]["PatternMatches"] == ["/api/*"]
-        assert denormalized["Triggers"][1]["Type"] == 10
+        assert denormalized["Triggers"][1]["Type"] == 9
 
     def test_denormalize_new_rule_no_guid(self):
         """New rule (no _api_id) should not include Guid in payload."""
@@ -324,7 +324,7 @@ class TestPutEdgeRules:
         new_rules = [
             _edge_rule(ref="Force HTTPS"),
             _edge_rule(ref="Block countries", action_type="block_request"),
-            _edge_rule(ref="New redirect", action_type="redirect_to_url"),
+            _edge_rule(ref="New redirect", action_type="redirect"),
         ]
         count = provider.put_phase_rules(_zs(), "bunny_edge_rule", new_rules)
         assert count == 3

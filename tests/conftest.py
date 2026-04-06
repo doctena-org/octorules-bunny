@@ -143,7 +143,7 @@ def sample_edge_rules():
             "ActionParameter2": "",
             "Triggers": [
                 {
-                    "Type": 5,
+                    "Type": 4,
                     "PatternMatchingType": 0,
                     "PatternMatches": ["CN", "RU"],
                     "Parameter1": "",

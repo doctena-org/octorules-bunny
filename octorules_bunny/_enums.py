@@ -125,7 +125,6 @@ SEVERITY_TO_STR: dict[int, str] = {
     0: "info",
     1: "warning",
     2: "error",
-    3: "critical",
 }
 STR_TO_SEVERITY: dict[str, int] = {v: k for k, v in SEVERITY_TO_STR.items()}
 
@@ -207,11 +206,31 @@ EDGE_ACTION_TO_STR: dict[int, str] = {
     7: "force_download",
     8: "disable_token_auth",
     9: "enable_token_auth",
-    10: "override_cache_time_override",
-    11: "bypass_perma_cache",
-    12: "set_robots_header",
-    13: "set_connection_limit",
-    14: "redirect_to_url",
+    10: "override_cache_time_public",
+    11: "ignore_query_string",
+    12: "disable_optimizer",
+    13: "force_compression",
+    14: "set_status_code",
+    15: "bypass_perma_cache",
+    16: "override_browser_cache_time",
+    17: "origin_storage",
+    18: "set_network_rate_limit",
+    19: "set_connection_limit",
+    20: "set_requests_per_second_limit",
+    21: "run_edge_script",
+    22: "origin_magic_containers",
+    23: "disable_waf",
+    24: "retry_origin",
+    25: "override_browser_cache_response_header",
+    26: "remove_browser_cache_response_header",
+    27: "disable_shield_challenge",
+    28: "disable_shield",
+    29: "disable_shield_bot_detection",
+    30: "bypass_aws_s3_authentication",
+    31: "disable_shield_access_lists",
+    32: "disable_shield_rate_limiting",
+    33: "enable_request_coalescing",
+    34: "disable_request_coalescing",
 }
 STR_TO_EDGE_ACTION: dict[str, int] = {v: k for k, v in EDGE_ACTION_TO_STR.items()}
 
@@ -222,15 +241,17 @@ EDGE_TRIGGER_TO_STR: dict[int, str] = {
     0: "url",
     1: "request_header",
     2: "response_header",
-    3: "url_query_string",
-    4: "cookie",
-    5: "country_code",
-    6: "remote_ip",
-    7: "url_extension",
-    8: "random_chance",
-    9: "status_code",
-    10: "request_method",
-    11: "content_type",
+    3: "url_extension",
+    4: "country_code",
+    5: "remote_ip",
+    6: "url_query_string",
+    7: "random_chance",
+    8: "status_code",
+    9: "request_method",
+    10: "cookie",
+    11: "country_state_code",
+    12: "origin_retry_attempt_count",
+    13: "origin_connection_error",
 }
 STR_TO_EDGE_TRIGGER: dict[str, int] = {v: k for k, v in EDGE_TRIGGER_TO_STR.items()}
 
@@ -248,8 +269,9 @@ STR_TO_EDGE_PATTERN_MATCH: dict[str, int] = {v: k for k, v in EDGE_PATTERN_MATCH
 # Edge Rule trigger matching types (top-level: how triggers are combined)
 # ---------------------------------------------------------------------------
 EDGE_TRIGGER_MATCH_TO_STR: dict[int, str] = {
-    0: "all",
-    1: "any",
+    0: "any",
+    1: "all",
+    2: "none",
 }
 STR_TO_EDGE_TRIGGER_MATCH: dict[str, int] = {v: k for k, v in EDGE_TRIGGER_MATCH_TO_STR.items()}
 

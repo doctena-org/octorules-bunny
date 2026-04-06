@@ -348,7 +348,7 @@ The transformation name is not recognized. Valid transformations include: `lower
 
 **Severity:** ERROR
 
-The severity must be one of: `info`, `warning`, `error`, `critical`.
+The severity must be one of: `info`, `warning`, `error`.
 
 **Triggers on:**
 
@@ -1132,7 +1132,7 @@ An access list has `enabled: false`. If intentionally disabled, consider removin
 
 **Severity:** ERROR
 
-Every edge rule must have a valid `action_type`. Valid values: `block_request`, `bypass_perma_cache`, `disable_token_auth`, `enable_token_auth`, `force_download`, `force_ssl`, `origin_url`, `override_cache_time`, `override_cache_time_override`, `redirect`, `redirect_to_url`, `set_connection_limit`, `set_request_header`, `set_response_header`, `set_robots_header`.
+Every edge rule must have a valid `action_type`. Valid values: `block_request`, `bypass_aws_s3_authentication`, `bypass_perma_cache`, `disable_optimizer`, `disable_request_coalescing`, `disable_shield`, `disable_shield_access_lists`, `disable_shield_bot_detection`, `disable_shield_challenge`, `disable_shield_rate_limiting`, `disable_token_auth`, `disable_waf`, `enable_request_coalescing`, `enable_token_auth`, `force_compression`, `force_download`, `force_ssl`, `ignore_query_string`, `origin_magic_containers`, `origin_storage`, `origin_url`, `override_browser_cache_response_header`, `override_browser_cache_time`, `override_cache_time`, `override_cache_time_public`, `redirect`, `remove_browser_cache_response_header`, `retry_origin`, `run_edge_script`, `set_connection_limit`, `set_network_rate_limit`, `set_request_header`, `set_requests_per_second_limit`, `set_response_header`, `set_status_code`.
 
 **Triggers on:**
 
@@ -1171,7 +1171,7 @@ or:
 
 **Severity:** ERROR
 
-Every trigger must have a valid `type`. Valid values: `content_type`, `cookie`, `country_code`, `random_chance`, `remote_ip`, `request_header`, `request_method`, `response_header`, `status_code`, `url`, `url_extension`, `url_query_string`.
+Every trigger must have a valid `type`. Valid values: `cookie`, `country_code`, `country_state_code`, `origin_connection_error`, `origin_retry_attempt_count`, `random_chance`, `remote_ip`, `request_header`, `request_method`, `response_header`, `status_code`, `url`, `url_extension`, `url_query_string`.
 
 **Triggers on:**
 
@@ -1235,7 +1235,7 @@ or:
 
 **Severity:** ERROR
 
-The top-level `trigger_matching_type` controls how multiple triggers are combined. Valid values: `all` (all triggers must match), `any` (at least one trigger must match).
+The top-level `trigger_matching_type` controls how multiple triggers are combined. Valid values: `any` (at least one trigger must match), `all` (all triggers must match), `none` (no trigger must match).
 
 **Triggers on:**
 

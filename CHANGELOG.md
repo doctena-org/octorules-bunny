@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.1] - 2026-04-06
+
+### Fixed
+- Edge rule action type enum mapping corrected — 35 action types now match
+  the Bunny API (previously only 15 were mapped, many to wrong integer
+  values). New action types include `disable_waf`, `retry_origin`,
+  `run_edge_script`, `origin_storage`, `origin_magic_containers`, and
+  20 others.
+- Edge rule trigger type enum mapping corrected — 14 trigger types now match
+  the Bunny API (previously `url_query_string`, `cookie`, `url_extension`
+  and others were mapped to wrong integer values). New trigger types:
+  `country_state_code`, `origin_retry_attempt_count`,
+  `origin_connection_error`. Removed: `content_type` (not a valid API
+  trigger type).
+- `trigger_matching_type` enum values swapped (`any` = 0, `all` = 1) to
+  match API, and `none` (= 2) added.
+- Removed invalid `"critical"` severity level from severity enum — valid
+  values are now `info`, `warning`, `error` only.
+
 ## [0.1.0] - 2026-04-05
 
 ### Added
