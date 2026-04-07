@@ -671,6 +671,11 @@ class TestDuplicateIP:
         r = _access_list(type="ip", content="2001:db8::1\n2001:db8::1")
         assert "BN309" in _ids(validate_rules([r], phase=_A))
 
+    def test_bn309_ipv6_case_insensitive(self):
+        """Mixed-case IPv6 addresses are detected as duplicates (M3 regression)."""
+        r = _access_list(type="ip", content="2001:DB8::1\n2001:db8::1")
+        assert "BN309" in _ids(validate_rules([r], phase=_A))
+
     def test_bn309_not_on_cidr_type(self):
         """BN309 only applies to ip-type lists, not cidr."""
         r = _access_list(type="cidr", content="10.0.0.0/24\n10.0.0.0/24")

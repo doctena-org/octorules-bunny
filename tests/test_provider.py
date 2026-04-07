@@ -83,6 +83,15 @@ class TestResolveZoneId:
         with pytest.raises(Exception, match="Shield Zone not found"):
             provider.resolve_zone_id("my-cdn")
 
+    def test_pull_zones_cached(self, mock_bunny_client, sample_pull_zones, sample_shield_zone):
+        """list_pull_zones is called once and cached across resolve_zone_id calls."""
+        mock_bunny_client.list_pull_zones.return_value = sample_pull_zones
+        mock_bunny_client.get_shield_zone_by_pullzone.return_value = sample_shield_zone
+        provider = BunnyShieldProvider(client=mock_bunny_client, api_key="k")
+        provider.resolve_zone_id("my-cdn")
+        provider.resolve_zone_id("staging-cdn")
+        assert mock_bunny_client.list_pull_zones.call_count == 1
+
 
 class TestListZones:
     def test_returns_names(self, mock_bunny_client, sample_pull_zones):
@@ -769,3 +778,80 @@ class TestDenormalizeEdgeCases:
         config = result["ruleConfiguration"]
         # No primary condition → no variableTypes
         assert config.get("variableTypes") is None or config.get("variableTypes") == {}
+
+
+class TestDuplicateRefDetection:
+    """Regression tests for duplicate ref guard in put_phase_rules (H4)."""
+
+    def test_duplicate_ref_in_current_rules(self, mock_bunny_client):
+        """Duplicate refs in the current (API-returned) rules raises ConfigError."""
+        # Two rules with the same ruleName → same ref after normalization
+        duplicate_current = [
+            {
+                "id": 101,
+                "shieldZoneId": 999,
+                "ruleName": "Block SQLi",
+                "ruleDescription": "",
+                "ruleConfiguration": {
+                    "actionType": 1,
+                    "operatorType": 17,
+                    "severityType": 2,
+                    "value": "",
+                    "variableTypes": {"13": ""},
+                    "transformationTypes": [8, 19],
+                    "chainedRuleConditions": [],
+                },
+            },
+            {
+                "id": 102,
+                "shieldZoneId": 999,
+                "ruleName": "Block SQLi",
+                "ruleDescription": "",
+                "ruleConfiguration": {
+                    "actionType": 1,
+                    "operatorType": 17,
+                    "severityType": 2,
+                    "value": "",
+                    "variableTypes": {"13": ""},
+                    "transformationTypes": [8, 19],
+                    "chainedRuleConditions": [],
+                },
+            },
+        ]
+        mock_bunny_client.list_custom_waf_rules.return_value = duplicate_current
+        provider = BunnyShieldProvider(client=mock_bunny_client, api_key="k")
+
+        desired = [
+            {
+                "ref": "New rule",
+                "action": "block",
+                "severity": "info",
+                "conditions": [
+                    {"variable": "request_uri", "operator": "contains", "value": "/admin"}
+                ],
+            },
+        ]
+        with pytest.raises(ConfigError, match="Duplicate refs"):
+            provider.put_phase_rules(_zs(), "bunny_waf_custom", desired)
+
+    def test_duplicate_ref_in_desired_rules(self, mock_bunny_client):
+        """Duplicate refs in the desired (input) rules raises ConfigError."""
+        mock_bunny_client.list_custom_waf_rules.return_value = []
+        provider = BunnyShieldProvider(client=mock_bunny_client, api_key="k")
+
+        desired = [
+            {
+                "ref": "Same name",
+                "action": "block",
+                "severity": "info",
+                "conditions": [{"variable": "request_uri", "operator": "contains", "value": "/a"}],
+            },
+            {
+                "ref": "Same name",
+                "action": "challenge",
+                "severity": "warning",
+                "conditions": [{"variable": "request_uri", "operator": "contains", "value": "/b"}],
+            },
+        ]
+        with pytest.raises(ConfigError, match="Duplicate refs"):
+            provider.put_phase_rules(_zs(), "bunny_waf_custom", desired)

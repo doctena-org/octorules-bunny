@@ -390,6 +390,7 @@ class BunnyShieldProvider:
         self._lock = threading.Lock()
         # shield_zone_id (str) -> {pull_zone_id, name}
         self._zone_meta: dict[str, dict] = {}
+        self._pull_zones_cache: list[dict] | None = None
 
     # -- Helpers --
 
@@ -452,7 +453,11 @@ class BunnyShieldProvider:
         1. List pull zones, find by name.
         2. Get the Shield Zone for that pull zone.
         """
-        pull_zones = self._client.list_pull_zones()
+        if self._pull_zones_cache is None:
+            with self._lock:
+                if self._pull_zones_cache is None:
+                    self._pull_zones_cache = self._client.list_pull_zones()
+        pull_zones = self._pull_zones_cache
         matches = [pz for pz in pull_zones if pz.get("Name") == zone_name]
         if len(matches) == 0:
             raise ConfigError(f"No pull zone found for {zone_name!r}")
@@ -523,6 +528,18 @@ class BunnyShieldProvider:
             else _shield_zone_id(scope)
         )
         current = self.get_phase_rules(scope, provider_id)
+
+        # Guard against duplicate refs (e.g. edge rules with identical Descriptions)
+        # which would silently drop rules in the dict comprehensions below.
+        for label, rule_list in (("current", current), ("desired", rules)):
+            seen_refs: dict[str, int] = {}
+            for r in rule_list:
+                ref = r.get("ref", "")
+                seen_refs[ref] = seen_refs.get(ref, 0) + 1
+            dupes = sorted(ref for ref, count in seen_refs.items() if count > 1)
+            if dupes:
+                raise ConfigError(f"Duplicate refs in {label} rules for {provider_id}: {dupes}")
+
         old_by_ref = {r["ref"]: r for r in current}
         new_by_ref = {r["ref"]: r for r in rules}
 

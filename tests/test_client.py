@@ -131,6 +131,117 @@ class TestRetryExhaustion:
         client.close()
 
 
+# ---------------------------------------------------------------------------
+# Retry-After header support
+# ---------------------------------------------------------------------------
+class TestRetryAfter:
+    @patch("octorules.retry.time.sleep")
+    def test_retry_after_header_respected(self, mock_sleep):
+        """429 with Retry-After header sleeps the extra time before backoff."""
+        client = BunnyShieldClient("key", max_retries=1)
+
+        # First response: 429 with Retry-After
+        rate_response = MagicMock()
+        rate_response.status_code = 429
+        rate_response.headers = {"Retry-After": "5"}
+        rate_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "rate limited", request=MagicMock(), response=rate_response
+        )
+
+        # Second response: success
+        ok_response = MagicMock()
+        ok_response.status_code = 200
+        ok_response.raise_for_status.return_value = None
+        ok_response.json.return_value = {"ok": True}
+
+        client._http = MagicMock()
+        client._http.request.side_effect = [rate_response, ok_response]
+        result = client._request("GET", "/test")
+        assert result == {"ok": True}
+
+        # First sleep: Retry-After extra (5 - 1.0 = 4.0)
+        # Second sleep: normal backoff from retry_with_backoff (1.0 + jitter)
+        assert mock_sleep.call_count == 2
+        extra_sleep = mock_sleep.call_args_list[0][0][0]
+        assert extra_sleep == 4.0
+        client.close()
+
+    @patch("octorules.retry.time.sleep")
+    def test_retry_after_below_backoff_no_extra_sleep(self, mock_sleep):
+        """When Retry-After is below normal backoff, no extra sleep is added."""
+        client = BunnyShieldClient("key", max_retries=1)
+
+        rate_response = MagicMock()
+        rate_response.status_code = 429
+        rate_response.headers = {"Retry-After": "0"}
+        rate_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "rate limited", request=MagicMock(), response=rate_response
+        )
+
+        ok_response = MagicMock()
+        ok_response.status_code = 200
+        ok_response.raise_for_status.return_value = None
+        ok_response.json.return_value = {"ok": True}
+
+        client._http = MagicMock()
+        client._http.request.side_effect = [rate_response, ok_response]
+        client._request("GET", "/test")
+        # Only the normal backoff sleep, no extra Retry-After sleep
+        assert mock_sleep.call_count == 1
+        client.close()
+
+    @patch("octorules.retry.time.sleep")
+    def test_retry_after_malformed_ignored(self, mock_sleep):
+        """Malformed Retry-After header is safely ignored."""
+        client = BunnyShieldClient("key", max_retries=1)
+
+        rate_response = MagicMock()
+        rate_response.status_code = 429
+        rate_response.headers = {"Retry-After": "not-a-number"}
+        rate_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "rate limited", request=MagicMock(), response=rate_response
+        )
+
+        ok_response = MagicMock()
+        ok_response.status_code = 200
+        ok_response.raise_for_status.return_value = None
+        ok_response.json.return_value = {"ok": True}
+
+        client._http = MagicMock()
+        client._http.request.side_effect = [rate_response, ok_response]
+        client._request("GET", "/test")
+        # Only the normal backoff sleep, no extra Retry-After sleep
+        assert mock_sleep.call_count == 1
+        client.close()
+
+    @patch("octorules.retry.time.sleep")
+    def test_retry_after_capped_at_120(self, mock_sleep):
+        """Huge Retry-After values are capped to 120 seconds."""
+        client = BunnyShieldClient("key", max_retries=1)
+
+        rate_response = MagicMock()
+        rate_response.status_code = 429
+        rate_response.headers = {"Retry-After": "9999"}
+        rate_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "rate limited", request=MagicMock(), response=rate_response
+        )
+
+        ok_response = MagicMock()
+        ok_response.status_code = 200
+        ok_response.raise_for_status.return_value = None
+        ok_response.json.return_value = {"ok": True}
+
+        client._http = MagicMock()
+        client._http.request.side_effect = [rate_response, ok_response]
+        client._request("GET", "/test")
+        # First sleep: Retry-After extra capped: min(9999, 120) - 1.0 = 119.0
+        # Second sleep: normal backoff from retry_with_backoff
+        assert mock_sleep.call_count == 2
+        extra_sleep = mock_sleep.call_args_list[0][0][0]
+        assert extra_sleep == pytest.approx(119.0)
+        client.close()
+
+
 class TestJSONDecodeError:
     @patch("octorules.retry.time.sleep")
     def test_non_json_response_retried_then_wrapped(self, _mock_sleep):

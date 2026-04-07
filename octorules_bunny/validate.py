@@ -778,10 +778,10 @@ def _validate_access_list(rule: dict, results: list[LintResult], phase: str) -> 
                         )
                     )
 
-        # BN309: duplicate IP entries
+        # BN309: duplicate IP entries (IPv6 lowercased for case-insensitive match)
         seen_ips: set[str] = set()
         for entry in entries:
-            normalized = entry.strip()
+            normalized = entry.strip().lower()
             if normalized in seen_ips:
                 results.append(
                     _result(

@@ -2,7 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/).
+
+## [0.1.2] - 2026-04-07
+
+### Added
+- `Retry-After` header support on 429 responses — the client now respects the
+  server's requested delay (capped at 120 seconds).
+- Duplicate ref detection in `put_phase_rules` — raises `ConfigError` when
+  edge rules have identical descriptions, preventing silent data loss.
+
+### Changed
+- Pull zone list is cached for the lifetime of the provider instance, avoiding
+  redundant API calls during multi-zone resolution.
+
+### Fixed
+- BN309 now normalises IPv6 addresses to lowercase before duplicate comparison,
+  matching the documented behaviour (`2001:DB8::1` and `2001:db8::1` are
+  detected as duplicates).
 
 ## [0.1.1] - 2026-04-06
 

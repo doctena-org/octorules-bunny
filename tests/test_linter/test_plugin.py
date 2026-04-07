@@ -2,7 +2,7 @@
 
 from octorules.linter.engine import LintContext
 
-from octorules_bunny.linter._plugin import bunny_lint
+from octorules_bunny.linter._plugin import BN_RULE_IDS, bunny_lint
 from octorules_bunny.linter._rules import BN_RULE_METAS
 
 
@@ -22,6 +22,14 @@ class TestRuleRegistration:
 
     def test_minimum_rule_count(self):
         assert len(BN_RULE_METAS) >= 35
+
+    def test_plugin_rule_ids_match_metas(self):
+        meta_ids = frozenset(r.rule_id for r in BN_RULE_METAS)
+        assert BN_RULE_IDS == meta_ids, (
+            f"BN_RULE_IDS and BN_RULE_METAS are out of sync: "
+            f"missing from metas: {BN_RULE_IDS - meta_ids}, "
+            f"missing from plugin: {meta_ids - BN_RULE_IDS}"
+        )
 
 
 class TestBunnyLint:

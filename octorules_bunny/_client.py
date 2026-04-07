@@ -5,6 +5,7 @@ exception classification.
 """
 
 import logging
+import time
 
 import httpx
 from octorules.retry import retry_with_backoff
@@ -86,14 +87,23 @@ class BunnyShieldClient:
         maintenance pages on 200).  After all retries are exhausted the
         last exception propagates — ``ValueError`` is caught by the caller
         and wrapped as ``BunnyAPIError``.
+
+        On 429 responses, the ``Retry-After`` header (seconds) is honoured:
+        the client sleeps for ``max(0, retry_after - backoff_delay)`` before
+        the normal retry backoff, so the total delay is at least
+        ``max(retry_after, backoff_delay)``.
         """
         _retryable = (_TransientHTTPError, httpx.TransportError, ValueError)
+        attempt_num = [0]
 
         def _do():
+            cur = attempt_num[0]
+            attempt_num[0] += 1
             try:
                 resp = self._http.request(method, path, **kwargs)
                 resp.raise_for_status()
             except httpx.HTTPStatusError as exc:
+                _sleep_for_retry_after(exc.response, cur)
                 _classify_http_error(exc)
             if resp.status_code == 204:
                 return {}
@@ -259,6 +269,42 @@ class BunnyShieldClient:
             f"/shield/shield-zone/{shield_zone_id}/bot-detection",
             json=payload,
         )
+
+
+# ---------------------------------------------------------------------------
+# Retry-After support
+# ---------------------------------------------------------------------------
+def _sleep_for_retry_after(response: httpx.Response, attempt: int) -> None:
+    """Sleep extra time if the server sent a ``Retry-After`` header.
+
+    Called before the normal backoff sleep so the total delay is at least
+    ``max(retry_after, backoff_delay)``.  The ``attempt`` index selects the
+    expected backoff from ``_RETRY_BACKOFF`` so we only sleep the *excess*.
+    """
+    if response.status_code != 429:
+        return
+    raw = response.headers.get("Retry-After")
+    if raw is None:
+        return
+    try:
+        retry_after = int(raw)
+    except (ValueError, TypeError):
+        return
+    if retry_after <= 0:
+        return
+    # Cap to prevent a rogue server from stalling the client indefinitely.
+    retry_after = min(retry_after, 120)
+    idx = min(attempt, len(_RETRY_BACKOFF) - 1)
+    expected_backoff = _RETRY_BACKOFF[idx]
+    extra = retry_after - expected_backoff
+    if extra > 0:
+        log.debug(
+            "Retry-After %ds exceeds backoff %.1fs, sleeping %.1fs extra",
+            retry_after,
+            expected_backoff,
+            extra,
+        )
+        time.sleep(extra)
 
 
 # ---------------------------------------------------------------------------
