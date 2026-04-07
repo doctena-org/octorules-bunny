@@ -479,12 +479,19 @@ class BunnyShieldProvider:
                 "pull_zone_id": pull_zone_id,
                 "name": zone_name,
             }
+        log.debug(
+            "Resolved %s -> shield_zone_id=%s (pull_zone_id=%d)",
+            zone_name,
+            shield_zone_id,
+            pull_zone_id,
+        )
         return shield_zone_id
 
     @_wrap_provider_errors
     def list_zones(self) -> list[str]:
         """List all pull zone names."""
         pull_zones = self._client.list_pull_zones()
+        log.debug("list_zones: %d pull zones", len(pull_zones))
         return [pz["Name"] for pz in pull_zones if "Name" in pz]
 
     # -- Phase rules --
@@ -497,17 +504,33 @@ class BunnyShieldProvider:
             pz_id = self._pull_zone_id(scope)
             pz = self._client.get_pull_zone(pz_id)
             raw = pz.get("EdgeRules", [])
-            return [_normalize_edge_rule(r) for r in raw]
+            result = [_normalize_edge_rule(r) for r in raw]
+            log.debug(
+                "get_phase_rules %s/%s: %d rules", self._fmt_scope(scope), provider_id, len(result)
+            )
+            return result
         sz = _shield_zone_id(scope)
         if provider_id == "bunny_waf_custom":
             raw = self._client.list_custom_waf_rules(sz)
-            return [_normalize_custom_rule(r) for r in raw]
+            result = [_normalize_custom_rule(r) for r in raw]
+            log.debug(
+                "get_phase_rules %s/%s: %d rules", self._fmt_scope(scope), provider_id, len(result)
+            )
+            return result
         if provider_id == "bunny_waf_rate_limit":
             raw = self._client.list_rate_limits(sz)
-            return [_normalize_rate_limit(r) for r in raw]
+            result = [_normalize_rate_limit(r) for r in raw]
+            log.debug(
+                "get_phase_rules %s/%s: %d rules", self._fmt_scope(scope), provider_id, len(result)
+            )
+            return result
         if provider_id == "bunny_waf_access_list":
             raw = self._client.list_access_lists(sz)
-            return [_normalize_access_list(r) for r in raw]
+            result = [_normalize_access_list(r) for r in raw]
+            log.debug(
+                "get_phase_rules %s/%s: %d rules", self._fmt_scope(scope), provider_id, len(result)
+            )
+            return result
         return []
 
     @_wrap_provider_errors
@@ -694,6 +717,7 @@ class BunnyShieldProvider:
         from octorules_bunny._pullzone_security import normalize_pullzone_security
 
         pz = self._client.get_pull_zone(self._pull_zone_id(scope))
+        log.debug("GET pullzone_security %s", self._fmt_scope(scope))
         return normalize_pullzone_security(pz)
 
     @_wrap_provider_errors
@@ -703,28 +727,33 @@ class BunnyShieldProvider:
 
         payload = denormalize_pullzone_security(settings)
         self._client.update_pull_zone(self._pull_zone_id(scope), payload)
+        log.debug("PUT pullzone_security %s", self._fmt_scope(scope))
 
     # -- Shield config methods (used by extension hooks) --------------------
 
     @_wrap_provider_errors
     def get_shield_zone_config(self, scope: Scope) -> dict:
         """Fetch the Shield Zone configuration."""
+        log.debug("GET shield_zone_config %s", self._fmt_scope(scope))
         return self._client.get_shield_zone(_shield_zone_id(scope))
 
     @_wrap_provider_errors
     def get_bot_detection_config(self, scope: Scope) -> dict:
         """Fetch bot detection configuration."""
+        log.debug("GET bot_detection %s", self._fmt_scope(scope))
         return self._client.get_bot_detection(_shield_zone_id(scope))
 
     @_wrap_provider_errors
     def update_bot_detection_config(self, scope: Scope, payload: dict) -> dict:
         """Update bot detection configuration."""
+        log.debug("PUT bot_detection %s", self._fmt_scope(scope))
         return self._client.update_bot_detection(_shield_zone_id(scope), payload)
 
     @_wrap_provider_errors
     def update_shield_zone_config(self, scope: Scope, payload: dict) -> dict:
         """Update Shield Zone configuration (DDoS, managed rules, etc.)."""
         payload["shieldZoneId"] = _shield_zone_id(scope)
+        log.debug("PUT shield_zone_config %s", self._fmt_scope(scope))
         return self._client.update_shield_zone(payload)
 
     # -- Custom rulesets (not supported) ------------------------------------

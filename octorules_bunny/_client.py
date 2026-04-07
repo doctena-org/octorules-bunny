@@ -93,6 +93,7 @@ class BunnyShieldClient:
         the normal retry backoff, so the total delay is at least
         ``max(retry_after, backoff_delay)``.
         """
+        log.debug("%s %s", method, path)
         _retryable = (_TransientHTTPError, httpx.TransportError, ValueError)
         attempt_num = [0]
 
