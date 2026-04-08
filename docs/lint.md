@@ -1,6 +1,6 @@
 # Lint Rule Reference
 
-`octorules lint` performs offline static analysis of your Bunny Shield WAF rules files. **53 rules** with the `BN` prefix cover structure, actions, operators, variables, transformations, conditions, rate limits, access lists, edge rules, cross-rule analysis, and best practices.
+`octorules lint` performs offline static analysis of your Bunny Shield WAF rules files. **55 rules** with the `BN` prefix cover structure, actions, operators, variables, transformations, conditions, rate limits, access lists, edge rules, cross-rule analysis, and best practices.
 
 These rules are registered automatically when `octorules-bunny` is installed. They run alongside any core and other provider rules during `octorules lint`.
 
@@ -53,6 +53,8 @@ Suppressed findings are excluded from the report but counted in the summary line
 | [BN003](#bn003--rule-missing-required-field) | Rule missing required field | ERROR |
 | [BN004](#bn004--unknown-top-level-rule-field) | Unknown top-level rule field | WARNING |
 | [BN005](#bn005--rule-field-has-wrong-type) | Rule field has wrong type | ERROR |
+| [BN006](#bn006--rule-entry-is-not-a-dict) | Rule entry is not a dict | ERROR |
+| [BN007](#bn007--phase-value-is-not-a-list) | Phase value is not a list | ERROR |
 | [BN010](#bn010--invalid-ref-format) | Invalid ref format | ERROR |
 | [BN011](#bn011--description-exceeds-255-characters) | Description exceeds 255 characters | WARNING |
 | [BN100](#bn100--invalid-action-value) | Invalid action value | ERROR |
@@ -232,6 +234,50 @@ A field exists but has the wrong type. For example, `severity` must be a string 
 ```yaml
     severity: error
 ```
+
+### BN006 — Rule entry is not a dict
+
+**Severity:** ERROR
+
+Each entry in a rules list must be a YAML mapping (dict). A bare scalar or list
+element (e.g. a string or integer) is always an authoring mistake.
+
+**Triggers on:**
+
+```yaml
+bunny_waf_custom_rules:
+  - "not a dict"         # <-- string instead of mapping
+```
+
+**Fix:** Replace the scalar with a proper rule mapping.
+
+### BN007 — Phase value is not a list
+
+**Severity:** ERROR
+
+Each phase key must map to a YAML list (sequence). A scalar, mapping, or
+null value is always an authoring mistake -- rules files expect a list of
+rule entries under each phase.
+
+**Triggers on:**
+
+```yaml
+bunny_waf_custom_rules: "not a list"
+```
+
+**Fix:** Use a proper list:
+
+```yaml
+bunny_waf_custom_rules:
+  - ref: Block admin
+    action: block
+    conditions:
+      - variable: request_uri
+        operator: contains
+        value: /admin
+```
+
+---
 
 ### BN010 — Invalid ref format
 

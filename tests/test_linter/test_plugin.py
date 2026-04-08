@@ -80,11 +80,29 @@ class TestBunnyLint:
         bunny_lint(rules_data, ctx)
         assert len(ctx.results) == 0
 
-    def test_non_list_phase_ignored(self):
+    def test_non_list_phase_produces_bn007(self):
         rules_data = {"bunny_waf_custom_rules": "not a list"}
         ctx = _ctx()
         bunny_lint(rules_data, ctx)
-        assert len(ctx.results) == 0
+        rule_ids = [r.rule_id for r in ctx.results]
+        assert "BN007" in rule_ids
+        result = next(r for r in ctx.results if r.rule_id == "BN007")
+        assert result.phase == "bunny_waf_custom_rules"
+        assert "not a list" in result.message
+
+    def test_non_list_phase_dict_produces_bn007(self):
+        rules_data = {"bunny_waf_custom_rules": {"key": "value"}}
+        ctx = _ctx()
+        bunny_lint(rules_data, ctx)
+        rule_ids = [r.rule_id for r in ctx.results]
+        assert "BN007" in rule_ids
+
+    def test_non_list_phase_skipped_by_filter(self):
+        rules_data = {"bunny_waf_custom_rules": "not a list"}
+        ctx = _ctx(phase_filter={"bunny_waf_rate_limit_rules"})
+        bunny_lint(rules_data, ctx)
+        rule_ids = [r.rule_id for r in ctx.results]
+        assert "BN007" not in rule_ids
 
 
 class TestCrossPhaseChecks:

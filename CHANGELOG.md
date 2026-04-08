@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.4] - 2026-04-08
+
+### Added
+- BN006 lint rule: "Rule entry is not a dict" (ERROR)
+- BN007 lint rule: "Phase value is not a list" (ERROR)
+
+### Changed
+- 20 missing docstrings added to provider (100% coverage)
+- `payload` parameter renamed to `settings` on 2 methods (consistency)
+- README heading capitalization normalized to sentence case
+
 ## [0.1.3] - 2026-04-07
 
 ### Added

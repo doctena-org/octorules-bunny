@@ -9,6 +9,8 @@ BN002 = RuleMeta("BN002", "structure", "Duplicate ref within phase", Severity.ER
 BN003 = RuleMeta("BN003", "structure", "Rule missing required field", Severity.ERROR)
 BN004 = RuleMeta("BN004", "structure", "Unknown top-level rule field", Severity.WARNING)
 BN005 = RuleMeta("BN005", "structure", "Rule field has wrong type", Severity.ERROR)
+BN006 = RuleMeta("BN006", "structure", "Rule entry is not a dict", Severity.ERROR)
+BN007 = RuleMeta("BN007", "structure", "Phase value is not a list", Severity.ERROR)
 BN010 = RuleMeta("BN010", "structure", "Invalid ref format (must be [a-zA-Z0-9 ]+)", Severity.ERROR)
 BN011 = RuleMeta("BN011", "structure", "Description exceeds 255 characters", Severity.WARNING)
 

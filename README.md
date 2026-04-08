@@ -58,7 +58,7 @@ Safety thresholds are configured under `safety:` (framework-owned, not forwarded
 | `safety.update_threshold` | `30.0` | Max % of rules that can be updated |
 | `safety.min_existing` | `3` | Min rules before thresholds apply |
 
-## Supported Features
+## Supported features
 
 | Feature | Status |
 |---------|--------|
@@ -258,13 +258,13 @@ This order ensures the zone never has *fewer* rules than intended during sync.
 
 ## Linting
 
-53 lint rules with the `BN` prefix validate your rules offline before sync. See [docs/lint.md](docs/lint.md) for the full reference.
+55 lint rules with the `BN` prefix validate your rules offline before sync. See [docs/lint.md](docs/lint.md) for the full reference.
 
 ```bash
 octorules lint
 ```
 
-## Known Limitations
+## Known limitations
 
 - **Non-atomic sync**: Bunny Shield has no bulk-replace API. `octorules sync` uses diff-and-reconcile (patch existing, add new, remove stale) — three separate API calls per changed rule. A failure mid-sync leaves the zone in an intermediate state; re-running sync will converge.
 - **Rule name constraints**: Bunny requires alphanumeric characters and spaces only — hyphens, underscores, and special characters are rejected by the API.

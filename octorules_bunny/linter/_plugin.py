@@ -156,6 +156,14 @@ def bunny_lint(rules_data: dict[str, Any], ctx: LintContext) -> None:
         if ctx.phase_filter and phase_name not in ctx.phase_filter:
             continue
         if not isinstance(rules, list):
+            ctx.add(
+                LintResult(
+                    rule_id="BN007",
+                    severity=Severity.ERROR,
+                    message=f"Phase '{phase_name}' value is not a list",
+                    phase=phase_name,
+                )
+            )
             continue
 
         results = validate_rules(rules, phase=phase_name)

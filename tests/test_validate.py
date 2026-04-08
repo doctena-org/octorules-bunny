@@ -747,3 +747,29 @@ class TestJA4Fingerprint:
     def test_bn308_dtls_protocol(self):
         r = _access_list(type="ja4", content="d12d1516h2_8daaf6152771_e5627efa2ab1")
         assert "BN308" not in _ids(validate_rules([r], phase=_A))
+
+
+# ---------------------------------------------------------------------------
+# BN006: Rule entry is not a dict
+# ---------------------------------------------------------------------------
+class TestRuleEntryNotDict:
+    def test_string_entry(self):
+        """Non-dict rule entry produces BN006 error."""
+        results = validate_rules(["not a dict"], phase=_C)
+        assert "BN006" in _ids(results)
+
+    def test_int_entry(self):
+        results = validate_rules([42], phase=_C)
+        assert "BN006" in _ids(results)
+
+    def test_list_entry(self):
+        results = validate_rules([[1, 2, 3]], phase=_C)
+        assert "BN006" in _ids(results)
+
+    def test_mixed_valid_and_invalid(self):
+        """Valid dict rules still validated alongside non-dict entries."""
+        r = _custom()
+        results = validate_rules(["bad", r], phase=_C)
+        assert "BN006" in _ids(results)
+        bn006_count = sum(1 for res in results if res.rule_id == "BN006")
+        assert bn006_count == 1

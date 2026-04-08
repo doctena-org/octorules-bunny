@@ -429,18 +429,22 @@ class BunnyShieldProvider:
 
     @property
     def max_workers(self) -> int:
+        """Maximum number of concurrent workers for parallel operations."""
         return self._max_workers
 
     @property
     def account_id(self) -> str | None:
+        """Return None; Bunny Shield has no account-level scope."""
         return None
 
     @property
     def account_name(self) -> str | None:
+        """Return None; Bunny Shield has no account-level scope."""
         return None
 
     @property
     def zone_plans(self) -> dict[str, str]:
+        """Return empty dict; Bunny Shield has no zone plan tiers."""
         return {}
 
     # -- Zone resolution --
@@ -498,6 +502,7 @@ class BunnyShieldProvider:
 
     @_wrap_provider_errors
     def get_phase_rules(self, scope: Scope, provider_id: str) -> list[dict]:
+        """Fetch rules for a single phase from the Shield Zone."""
         if provider_id not in BUNNY_PHASE_IDS:
             return []
         if provider_id == "bunny_edge_rule":
@@ -623,6 +628,7 @@ class BunnyShieldProvider:
     def get_all_phase_rules(
         self, scope: Scope, *, provider_ids: list[str] | None = None
     ) -> PhaseRulesResult:
+        """Fetch rules for all Bunny phases from a Shield Zone."""
         phases_to_fetch = provider_ids if provider_ids is not None else list(BUNNY_PHASE_IDS)
         phases_to_fetch = [p for p in phases_to_fetch if p in BUNNY_PHASE_IDS]
 
@@ -744,82 +750,96 @@ class BunnyShieldProvider:
         return self._client.get_bot_detection(_shield_zone_id(scope))
 
     @_wrap_provider_errors
-    def update_bot_detection_config(self, scope: Scope, payload: dict) -> dict:
+    def update_bot_detection_config(self, scope: Scope, settings: dict) -> dict:
         """Update bot detection configuration."""
         log.debug("PUT bot_detection %s", self._fmt_scope(scope))
-        return self._client.update_bot_detection(_shield_zone_id(scope), payload)
+        return self._client.update_bot_detection(_shield_zone_id(scope), settings)
 
     @_wrap_provider_errors
-    def update_shield_zone_config(self, scope: Scope, payload: dict) -> dict:
+    def update_shield_zone_config(self, scope: Scope, settings: dict) -> dict:
         """Update Shield Zone configuration (DDoS, managed rules, etc.)."""
-        payload["shieldZoneId"] = _shield_zone_id(scope)
+        settings["shieldZoneId"] = _shield_zone_id(scope)
         log.debug("PUT shield_zone_config %s", self._fmt_scope(scope))
-        return self._client.update_shield_zone(payload)
+        return self._client.update_shield_zone(settings)
 
     # -- Custom rulesets (not supported) ------------------------------------
 
     @_wrap_provider_errors
     def list_custom_rulesets(self, scope: Scope) -> list[dict]:
+        """Bunny Shield has no custom rulesets concept."""
         return []
 
     @_wrap_provider_errors
     def get_custom_ruleset(self, scope: Scope, ruleset_id: str) -> list[dict]:
+        """Bunny Shield has no custom rulesets concept."""
         return []
 
     @_wrap_provider_errors
     def put_custom_ruleset(self, scope: Scope, ruleset_id: str, rules: list[dict]) -> int:
+        """Bunny Shield has no custom rulesets concept."""
         raise ConfigError("Custom rulesets are not supported by Bunny Shield")
 
     @_wrap_provider_errors
     def create_custom_ruleset(
         self, scope: Scope, name: str, phase: str, capacity: int, description: str = ""
     ) -> dict:
+        """Bunny Shield has no custom rulesets concept."""
         raise ConfigError("Custom rulesets are not supported by Bunny Shield")
 
     @_wrap_provider_errors
     def delete_custom_ruleset(self, scope: Scope, ruleset_id: str) -> None:
+        """Bunny Shield has no custom rulesets concept."""
         raise ConfigError("Custom rulesets are not supported by Bunny Shield")
 
     @_wrap_provider_errors
     def get_all_custom_rulesets(
         self, scope: Scope, *, ruleset_ids: list[str] | None = None
     ) -> dict[str, dict]:
+        """Bunny Shield has no custom rulesets concept."""
         return {}
 
     # -- Lists (not supported) ----------------------------------------------
 
     @_wrap_provider_errors
     def list_lists(self, scope: Scope) -> list[dict]:
+        """Bunny Shield does not support lists; use the access list phase instead."""
         return []
 
     @_wrap_provider_errors
     def create_list(self, scope: Scope, name: str, kind: str, description: str = "") -> dict:
+        """Bunny Shield does not support lists; use the access list phase instead."""
         raise ConfigError("Lists are not supported by Bunny Shield (use access list phase)")
 
     @_wrap_provider_errors
     def delete_list(self, scope: Scope, list_id: str) -> None:
+        """Bunny Shield does not support lists."""
         raise ConfigError("Lists are not supported by Bunny Shield")
 
     @_wrap_provider_errors
     def update_list_description(self, scope: Scope, list_id: str, description: str) -> None:
+        """Bunny Shield does not support lists."""
         raise ConfigError("Lists are not supported by Bunny Shield")
 
     @_wrap_provider_errors
     def get_list_items(self, scope: Scope, list_id: str) -> list[dict]:
+        """Bunny Shield does not support lists."""
         return []
 
     @_wrap_provider_errors
     def put_list_items(self, scope: Scope, list_id: str, items: list[dict]) -> str:
+        """Bunny Shield does not support lists."""
         raise ConfigError("Lists are not supported by Bunny Shield")
 
     @_wrap_provider_errors
     def poll_bulk_operation(
         self, scope: Scope, operation_id: str, *, timeout: float = 120.0
     ) -> str:
+        """Return 'completed'; Bunny Shield operations are synchronous."""
         return "completed"
 
     @_wrap_provider_errors
     def get_all_lists(
         self, scope: Scope, *, list_names: list[str] | None = None
     ) -> dict[str, dict]:
+        """Bunny Shield does not support lists."""
         return {}
