@@ -10,6 +10,7 @@ Shield in ``octorules_cloudflare/page_shield.py``.
 """
 
 import logging
+import threading
 from dataclasses import dataclass, field
 
 from octorules_bunny._enums import (
@@ -544,14 +545,16 @@ def _dump_shield_config(scope, provider, out_dir):
 # Registration
 # ---------------------------------------------------------------------------
 _registered = False
+_register_lock = threading.Lock()
 
 
 def register_shield_config() -> None:
     """Register all shield config hooks with the core extension system."""
     global _registered
-    if _registered:
-        return
-    _registered = True
+    with _register_lock:
+        if _registered:
+            return
+        _registered = True
 
     from octorules.extensions import (
         register_apply_extension,
