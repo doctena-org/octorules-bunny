@@ -368,6 +368,7 @@ class BunnyShieldProvider:
         max_retries: int = 2,
         client: object = None,
         api_key: str | None = None,
+        plan: str | None = None,
         **_extra: object,
     ) -> None:
         if client is not None:
@@ -387,9 +388,11 @@ class BunnyShieldProvider:
                 client_kwargs["max_connections"] = 10 * max_workers
             self._client = BunnyShieldClient(api_key, **client_kwargs)
         self._max_workers = max_workers
+        self._plan = plan.lower() if plan else None
         self._lock = threading.Lock()
         # shield_zone_id (str) -> {pull_zone_id, name}
         self._zone_meta: dict[str, dict] = {}
+        self._zone_plans: dict[str, str] = {}
         self._pull_zones_cache: list[dict] | None = None
 
     # -- Helpers --
@@ -444,8 +447,17 @@ class BunnyShieldProvider:
 
     @property
     def zone_plans(self) -> dict[str, str]:
-        """Return empty dict; Bunny Shield has no zone plan tiers."""
-        return {}
+        """Zone tiers from the ``plan`` provider kwarg.
+
+        The Bunny Shield API does not expose account tier, so the plan
+        must be set explicitly via provider config::
+
+            providers:
+              bunny:
+                api_key: env/BUNNY_API_KEY
+                plan: advanced
+        """
+        return dict(self._zone_plans)
 
     # -- Zone resolution --
 
@@ -483,6 +495,8 @@ class BunnyShieldProvider:
                 "pull_zone_id": pull_zone_id,
                 "name": zone_name,
             }
+            if self._plan:
+                self._zone_plans[zone_name] = self._plan
         log.debug(
             "Resolved %s -> shield_zone_id=%s (pull_zone_id=%d)",
             zone_name,

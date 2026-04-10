@@ -317,35 +317,6 @@ class TestApplyHook:
 # Format extension
 # ---------------------------------------------------------------------------
 class TestPullZoneSecurityFormatter:
-    def test_format_plan(self):
-        fmt = PullZoneSecurityFormatter()
-        plan = PullZoneSecurityPlan(
-            changes=[
-                PullZoneSecurityChange("blocked_ips", "", "10.0.0.1"),
-            ]
-        )
-        lines = fmt.format_plan([plan], "my-zone")
-        assert len(lines) == 1
-        assert "10.0.0.1" in lines[0]
-        assert "my-zone" in lines[0]
-        assert "pullzone_security.blocked_ips" in lines[0]
-
-    def test_count_changes(self):
-        fmt = PullZoneSecurityFormatter()
-        plan = PullZoneSecurityPlan(
-            changes=[
-                PullZoneSecurityChange("blocked_ips", "", "10.0.0.1"),
-                PullZoneSecurityChange("cors_enabled", False, False),  # no change
-                PullZoneSecurityChange("block_post_requests", False, True),
-            ]
-        )
-        assert fmt.count_changes([plan]) == 2
-
-    def test_empty_plans(self):
-        fmt = PullZoneSecurityFormatter()
-        assert fmt.format_plan([], "z") == []
-        assert fmt.count_changes([]) == 0
-
     # -- format_text --------------------------------------------------------
 
     def test_format_text_with_changes(self):

@@ -34,9 +34,38 @@ class TestProperties:
         provider = BunnyShieldProvider(client=mock_bunny_client, api_key="k")
         assert provider.account_name is None
 
-    def test_zone_plans_is_empty(self, mock_bunny_client):
+    def test_zone_plans_empty_without_plan_kwarg(self, mock_bunny_client):
         provider = BunnyShieldProvider(client=mock_bunny_client, api_key="k")
         assert provider.zone_plans == {}
+
+    def test_zone_plans_populated_with_plan_kwarg(
+        self, mock_bunny_client, sample_pull_zones, sample_shield_zone
+    ):
+        mock_bunny_client.list_pull_zones.return_value = sample_pull_zones
+        mock_bunny_client.get_shield_zone_by_pullzone.return_value = sample_shield_zone
+        provider = BunnyShieldProvider(client=mock_bunny_client, api_key="k", plan="advanced")
+        provider.resolve_zone_id("my-cdn")
+        assert provider.zone_plans == {"my-cdn": "advanced"}
+
+    def test_zone_plans_plan_kwarg_lowercased(
+        self, mock_bunny_client, sample_pull_zones, sample_shield_zone
+    ):
+        mock_bunny_client.list_pull_zones.return_value = sample_pull_zones
+        mock_bunny_client.get_shield_zone_by_pullzone.return_value = sample_shield_zone
+        provider = BunnyShieldProvider(client=mock_bunny_client, api_key="k", plan="Advanced")
+        provider.resolve_zone_id("my-cdn")
+        assert provider.zone_plans == {"my-cdn": "advanced"}
+
+    def test_zone_plans_defensive_copy(
+        self, mock_bunny_client, sample_pull_zones, sample_shield_zone
+    ):
+        mock_bunny_client.list_pull_zones.return_value = sample_pull_zones
+        mock_bunny_client.get_shield_zone_by_pullzone.return_value = sample_shield_zone
+        provider = BunnyShieldProvider(client=mock_bunny_client, api_key="k", plan="free")
+        provider.resolve_zone_id("my-cdn")
+        copy = provider.zone_plans
+        copy["injected"] = "bad"
+        assert "injected" not in provider.zone_plans
 
 
 class TestInit:

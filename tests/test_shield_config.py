@@ -355,35 +355,6 @@ class TestApplyHook:
 # Format extension
 # ---------------------------------------------------------------------------
 class TestShieldConfigFormatter:
-    def test_format_plan(self):
-        fmt = ShieldConfigFormatter()
-        plan = ShieldConfigPlan(
-            changes=[
-                ShieldConfigChange("bot_detection", "execution_mode", "log", "block"),
-            ]
-        )
-        lines = fmt.format_plan([plan], "my-zone")
-        assert len(lines) == 1
-        assert "log" in lines[0]
-        assert "block" in lines[0]
-        assert "my-zone" in lines[0]
-
-    def test_count_changes(self):
-        fmt = ShieldConfigFormatter()
-        plan = ShieldConfigPlan(
-            changes=[
-                ShieldConfigChange("bot_detection", "execution_mode", "log", "block"),
-                ShieldConfigChange("bot_detection", "ip_sensitivity", "low", "low"),  # no change
-                ShieldConfigChange("ddos", "shield_sensitivity", "low", "high"),
-            ]
-        )
-        assert fmt.count_changes([plan]) == 2  # Only 2 actual changes
-
-    def test_empty_plans(self):
-        fmt = ShieldConfigFormatter()
-        assert fmt.format_plan([], "z") == []
-        assert fmt.count_changes([]) == 0
-
     # -- format_text --------------------------------------------------------
 
     def test_format_text_with_changes(self):

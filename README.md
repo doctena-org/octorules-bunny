@@ -49,6 +49,7 @@ All settings below go under the provider section (e.g. `providers.bunny`).
 | `timeout` | `30` | API timeout in seconds |
 | `max_retries` | `2` | API retry count (retries on 429/5xx) |
 | `max_workers` | `1` | Parallel workers for multi-zone operations |
+| `plan` | *(none)* | Bunny account tier (`free` or `advanced`) for plan-aware lint rules (BN501). |
 
 Safety thresholds are configured under `safety:` (framework-owned, not forwarded to the provider):
 
@@ -270,7 +271,7 @@ octorules lint
 - **Rule name constraints**: Bunny requires alphanumeric characters and spaces only — hyphens, underscores, and special characters are rejected by the API.
 - **No custom rulesets or lists**: Bunny Shield has no equivalent of AWS Rule Groups or Cloudflare Lists. Use the access list phase for IP/CIDR/ASN/country blocking.
 - **Access list entries are individual**: Each access list entry is a separate API object; there is no batch create/delete. Large changeset syncs make many API calls.
-- **Plan tier limits**: Free plans cannot create custom WAF rules and are limited to 2 rate-limit rules. The linter warns about these limits (BN501).
+- **Plan tier limits**: Free plans cannot create custom WAF rules and are limited to 2 rate-limit rules. The linter warns about these limits (BN501). Set `plan: advanced` in the provider config to check only against Advanced tier limits.
 
 ## Development
 

@@ -154,6 +154,94 @@ class TestCrossPhaseChecks:
         rule_ids = [r.rule_id for r in ctx.results]
         assert "BN501" in rule_ids
 
+    def test_bn501_respects_plan_tier_free(self):
+        """When plan_tier='free', BN501 checks only the free limit."""
+        rules_data = {
+            "bunny_waf_custom_rules": [
+                {
+                    "ref": f"Rule {i}",
+                    "action": "block",
+                    "severity": "info",
+                    "description": "test",
+                    "conditions": [
+                        {"variable": "request_uri", "operator": "contains", "value": f"/{i}"},
+                    ],
+                }
+                for i in range(3)
+            ]
+        }
+        ctx = _ctx(plan_tier="free")
+        bunny_lint(rules_data, ctx)
+        bn501 = [r for r in ctx.results if r.rule_id == "BN501"]
+        assert len(bn501) == 1
+        assert "free" in bn501[0].message
+
+    def test_bn501_respects_plan_tier_advanced_under_limit(self):
+        """When plan_tier='advanced' and rule count is within limit, no BN501."""
+        rules_data = {
+            "bunny_waf_custom_rules": [
+                {
+                    "ref": f"Rule {i}",
+                    "action": "block",
+                    "severity": "info",
+                    "description": "test",
+                    "conditions": [
+                        {"variable": "request_uri", "operator": "contains", "value": f"/{i}"},
+                    ],
+                }
+                for i in range(3)
+            ]
+        }
+        ctx = _ctx(plan_tier="advanced")
+        bunny_lint(rules_data, ctx)
+        bn501 = [r for r in ctx.results if r.rule_id == "BN501"]
+        assert len(bn501) == 0
+
+    def test_bn501_respects_plan_tier_advanced_over_limit(self):
+        """When plan_tier='advanced' and rule count exceeds limit, BN501 fires."""
+        rules_data = {
+            "bunny_waf_custom_rules": [
+                {
+                    "ref": f"Rule {i}",
+                    "action": "block",
+                    "severity": "info",
+                    "description": "test",
+                    "conditions": [
+                        {"variable": "request_uri", "operator": "contains", "value": f"/{i}"},
+                    ],
+                }
+                for i in range(11)
+            ]
+        }
+        ctx = _ctx(plan_tier="advanced")
+        bunny_lint(rules_data, ctx)
+        bn501 = [r for r in ctx.results if r.rule_id == "BN501"]
+        assert len(bn501) == 1
+        assert "advanced" in bn501[0].message
+
+    def test_bn501_enterprise_tier_falls_back(self):
+        """When plan_tier='enterprise' (unknown), fall back to lowest-tier-exceeded."""
+        rules_data = {
+            "bunny_waf_custom_rules": [
+                {
+                    "ref": f"Rule {i}",
+                    "action": "block",
+                    "severity": "info",
+                    "description": "test",
+                    "conditions": [
+                        {"variable": "request_uri", "operator": "contains", "value": f"/{i}"},
+                    ],
+                }
+                for i in range(3)
+            ]
+        }
+        ctx = _ctx(plan_tier="enterprise")
+        bunny_lint(rules_data, ctx)
+        bn501 = [r for r in ctx.results if r.rule_id == "BN501"]
+        # 3 rules exceeds free limit of 0, so should warn
+        assert len(bn501) == 1
+        assert "free" in bn501[0].message
+
     def test_bn502_conflicting_access_lists(self):
         rules_data = {
             "bunny_waf_access_list_rules": [

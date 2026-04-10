@@ -56,7 +56,15 @@ def _check_duplicate_conditions(rules_data: dict[str, Any], ctx: LintContext) ->
 
 
 def _check_plan_tier_limits(rules_data: dict[str, Any], ctx: LintContext) -> None:
-    """BN501: Warn if rule count exceeds known plan tier limits."""
+    """BN501: Warn if rule count exceeds known plan tier limits.
+
+    When ``ctx.plan_tier`` matches a known tier (e.g. "free", "advanced"),
+    only check against that tier's limit.  When it is unknown or the
+    default ("enterprise"), fall back to warning for the lowest tier
+    exceeded — the previous behaviour.
+    """
+    tier = ctx.plan_tier.lower()
+
     for phase_name, rules in rules_data.items():
         if phase_name not in BUNNY_PHASE_NAMES:
             continue
@@ -68,9 +76,10 @@ def _check_plan_tier_limits(rules_data: dict[str, Any], ctx: LintContext) -> Non
             continue
 
         count = len(rules)
-        # Check against known limits
-        for tier, limits in _PLAN_LIMITS.items():
-            limit = limits.get(phase_name)
+
+        if tier in _PLAN_LIMITS:
+            # Known tier — check only that tier's limit.
+            limit = _PLAN_LIMITS[tier].get(phase_name)
             if limit is not None and count > limit:
                 ctx.add(
                     LintResult(
@@ -83,7 +92,23 @@ def _check_plan_tier_limits(rules_data: dict[str, Any], ctx: LintContext) -> Non
                         phase=phase_name,
                     )
                 )
-                break  # Only warn for the lowest tier exceeded
+        else:
+            # Unknown/enterprise tier — warn for the lowest tier exceeded.
+            for t, limits in _PLAN_LIMITS.items():
+                limit = limits.get(phase_name)
+                if limit is not None and count > limit:
+                    ctx.add(
+                        LintResult(
+                            rule_id="BN501",
+                            severity=Severity.WARNING,
+                            message=(
+                                f"{phase_name} has {count} rules, exceeding the"
+                                f" {t} plan limit of {limit}"
+                            ),
+                            phase=phase_name,
+                        )
+                    )
+                    break  # Only warn for the lowest tier exceeded
 
 
 def _check_conflicting_access_lists(rules_data: dict[str, Any], ctx: LintContext) -> None:

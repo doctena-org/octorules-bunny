@@ -1064,7 +1064,16 @@ The number of rules exceeds known plan tier limits:
 | Free | 0 | 2 |
 | Advanced | 10 | 10 |
 
-**Fix:** Upgrade your plan or reduce rule count.
+When `plan` is set in the provider config (e.g., `plan: advanced`), BN501 checks only against that tier's limits. When `plan` is not set, BN501 warns for the lowest tier exceeded (e.g., if you have 3 rate-limit rules, it warns that the Free tier limit of 2 is exceeded).
+
+**Fix:** Upgrade your plan or reduce rule count. If you know your account tier, set `plan` in the provider config to suppress warnings for higher tiers:
+
+```yaml
+providers:
+  bunny:
+    api_key: env/BUNNY_API_KEY
+    plan: advanced
+```
 
 ### BN502 — Conflicting access lists
 
