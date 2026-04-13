@@ -2,7 +2,7 @@
 
 Bunny.net Shield WAF provider for [octorules](https://github.com/doctena-org/octorules) — manages Bunny Shield custom WAF rules, rate limits, access lists, edge rules, managed rule overrides, pull zone security, and bot/DDoS configuration as YAML.
 
-> **Alpha** — this provider has comprehensive offline test coverage (486 tests)
+> **Alpha** — this provider has comprehensive offline test coverage (487 tests)
 > but has not yet been tested against live Bunny Shield APIs. Use with caution
 > and report any issues.
 
@@ -220,18 +220,27 @@ bunny_shield_config:
 | `args` | 2 | Optional | All arguments |
 | `args_combined_size` | 3 | No | Total argument size |
 | `args_get` | 4 | Optional | GET parameters |
+| `args_get_names` | 5 | No | GET parameter names |
 | `args_post` | 6 | Optional | POST parameters |
+| `args_post_names` | 7 | No | POST parameter names |
+| `files_names` | 8 | No | Uploaded file names |
 | `geo` | 9 | **Required** | Geographic data (COUNTRY_CODE, ASN, CITY, CONTINENT, LATITUDE, LONGITUDE) |
 | `remote_addr` | 10 | No | Client IP address |
 | `query_string` | 11 | No | Query string |
+| `request_basename` | 12 | No | Request URI basename |
 | `request_body` | 13 | No | Request body |
+| `request_cookies_names` | 14 | No | Cookie names |
 | `request_cookies` | 15 | **Required** | Cookie (specify cookie name as variable_value) |
+| `request_filename` | 16 | No | Request filename |
+| `request_headers_names` | 17 | No | Header names |
 | `request_headers` | 18 | **Required** | Header (specify header name as variable_value) |
+| `request_line` | 19 | No | Full request line |
 | `request_method` | 20 | No | HTTP method |
+| `request_protocol` | 21 | No | Request protocol |
+| `response_body` | 22 | No | Response body |
+| `response_headers` | 23 | Optional | Response header (specify header name as variable_value) |
 | `response_status` | 24 | No | Response status code |
 | `fingerprint` | 25 | No | Client fingerprint |
-
-See `octorules_bunny/_enums.py` for the complete list of 26 variables.
 
 ## Rule Name Constraints
 
@@ -289,4 +298,4 @@ ln -sf ../../scripts/hooks/pre-commit .git/hooks/pre-commit
 
 ## License
 
-Apache-2.0
+octorules-bunny is licensed under the [Apache License 2.0](LICENSE).

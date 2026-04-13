@@ -99,7 +99,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   IPs/countries/referrers, token auth, CORS, logging anonymization
 - Thin httpx client with auto-pagination, retry on 429/5xx, connection pool
   scaling, and error classification
-- 52 lint rules (BN001–BN705) covering all 4 phases, cross-rule analysis,
+- 53 lint rules (BN001–BN705) covering all 4 phases, cross-rule analysis,
   and best practices
 - Audit extension for IP/CIDR extraction from access lists and WAF rules
 - Parallel phase fetching via `fetch_parallel`

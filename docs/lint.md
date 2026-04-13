@@ -85,7 +85,7 @@ Suppressed findings are excluded from the report but counted in the summary line
 | [BN306](#bn306--cidr-has-host-bits-set) | CIDR has host bits set (auto-correctable) | WARNING |
 | [BN307](#bn307--overlapping-cidrs) | Overlapping CIDRs within same access list | WARNING |
 | [BN308](#bn308--invalid-ja4-fingerprint) | Invalid JA4 fingerprint format | WARNING |
-| [BN309](#bn309--duplicate-ip-in-access-list) | Duplicate IP/CIDR in access list | WARNING |
+| [BN309](#bn309--duplicate-ip-in-access-list) | Duplicate IP in access list | WARNING |
 | [BN400](#bn400--condition-missing-variable) | Condition missing 'variable' | ERROR |
 | [BN401](#bn401--condition-missing-operator) | Condition missing 'operator' | ERROR |
 | [BN402](#bn402--detect_sqlidetect_xss-ignores-value) | detect_sqli/detect_xss operators ignore 'value' field | WARNING |
@@ -897,11 +897,13 @@ For `ja4` type access lists, each entry must be a valid JA4 TLS fingerprint — 
       t13d1516h2_8daaf6152771_e5627efa2ab1
 ```
 
-### BN309 — Duplicate IP/CIDR in access list
+### BN309 — Duplicate IP in access list
 
 **Severity:** WARNING
 
-The same IP address or CIDR range appears more than once in a single `ip` or `cidr` type access list. Duplicates waste capacity and may indicate a copy-paste error. IPv6 addresses are normalised to lowercase before comparison so that `2001:DB8::1` and `2001:db8::1` are detected as duplicates.
+The same IP address appears more than once in an `ip` type access list. Duplicates waste capacity and may indicate a copy-paste error. IPv6 addresses are normalised to lowercase before comparison so that `2001:DB8::1` and `2001:db8::1` are detected as duplicates.
+
+> **Note:** This rule only applies to `ip` type access lists, not `cidr` type.
 
 **Triggers on:**
 
@@ -914,10 +916,10 @@ The same IP address or CIDR range appears more than once in a single `ip` or `ci
 ```
 
 ```yaml
-    type: cidr
+    type: ip
     content: |
-      2001:DB8::1/128
-      2001:db8::1/128
+      2001:DB8::1
+      2001:db8::1
 ```
 
 **Fix:** Remove the duplicate entry:
