@@ -70,7 +70,7 @@ BN307 = RuleMeta(
     "BN307", "access_list", "Overlapping CIDRs within same access list", Severity.WARNING
 )
 BN308 = RuleMeta("BN308", "access_list", "Invalid JA4 fingerprint format", Severity.WARNING)
-BN309 = RuleMeta("BN309", "access_list", "Duplicate IP in access list", Severity.WARNING)
+BN309 = RuleMeta("BN309", "access_list", "Duplicate entry in access list", Severity.WARNING)
 
 # BN4xx — Condition validation
 BN400 = RuleMeta("BN400", "condition", "Condition missing 'variable'", Severity.ERROR)

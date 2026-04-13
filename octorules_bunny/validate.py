@@ -737,6 +737,24 @@ def _validate_access_list(rule: dict, results: list[LintResult], phase: str) -> 
                         )
                     )
 
+        # BN309: duplicate CIDRs (normalised so 10.0.0.1/24 == 10.0.0.0/24)
+        seen_cidrs: set[str] = set()
+        for net in valid_nets:
+            key = str(net)
+            if key in seen_cidrs:
+                results.append(
+                    _result(
+                        "BN309",
+                        Severity.WARNING,
+                        f"Duplicate CIDR in access list: {key}",
+                        phase,
+                        ref,
+                        field="content",
+                    )
+                )
+            else:
+                seen_cidrs.add(key)
+
     elif list_type == "ip":
         for entry in entries:
             try:

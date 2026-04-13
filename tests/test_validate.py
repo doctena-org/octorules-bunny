@@ -676,10 +676,23 @@ class TestDuplicateIP:
         r = _access_list(type="ip", content="2001:DB8::1\n2001:db8::1")
         assert "BN309" in _ids(validate_rules([r], phase=_A))
 
-    def test_bn309_not_on_cidr_type(self):
-        """BN309 only applies to ip-type lists, not cidr."""
+    def test_bn309_cidr_exact_duplicate(self):
+        """BN309 also fires for exact duplicate CIDRs in cidr-type lists."""
         r = _access_list(type="cidr", content="10.0.0.0/24\n10.0.0.0/24")
+        assert "BN309" in _ids(validate_rules([r], phase=_A))
+
+    def test_bn309_cidr_normalised_duplicate(self):
+        """10.0.0.1/24 and 10.0.0.0/24 normalise to the same network."""
+        r = _access_list(type="cidr", content="10.0.0.1/24\n10.0.0.0/24")
+        assert "BN309" in _ids(validate_rules([r], phase=_A))
+
+    def test_bn309_cidr_no_false_positive_on_different_nets(self):
+        r = _access_list(type="cidr", content="10.0.0.0/24\n10.0.1.0/24")
         assert "BN309" not in _ids(validate_rules([r], phase=_A))
+
+    def test_bn309_cidr_ipv6_duplicate(self):
+        r = _access_list(type="cidr", content="2001:db8::/32\n2001:db8::/32")
+        assert "BN309" in _ids(validate_rules([r], phase=_A))
 
     def test_bn309_message_contains_ip(self):
         r = _access_list(type="ip", content="8.8.8.8\n8.8.8.8")
