@@ -7,10 +7,21 @@ from octorules.linter.engine import LintContext, LintResult, Severity
 from octorules.phases import PHASE_BY_NAME
 
 from octorules_bunny._phases import BUNNY_PHASE_NAMES
-from octorules_bunny.linter._rules import BN_RULE_METAS
+from octorules_bunny.validate import RULE_IDS as _validate_ids
 from octorules_bunny.validate import validate_rules
 
-BN_RULE_IDS: frozenset[str] = frozenset(r.rule_id for r in BN_RULE_METAS)
+# Rule IDs emitted by cross-phase checks in this module.
+_PLUGIN_RULE_IDS: frozenset[str] = frozenset(
+    {
+        "BN007",
+        "BN500",
+        "BN501",
+        "BN502",
+        "BN503",
+    }
+)
+
+BN_RULE_IDS: frozenset[str] = _validate_ids | _PLUGIN_RULE_IDS
 
 # Plan tier limits (custom WAF rules, rate limits).
 _PLAN_LIMITS: dict[str, dict[str, int]] = {
@@ -171,6 +182,90 @@ def _check_conflicting_access_lists(rules_data: dict[str, Any], ctx: LintContext
                 )
 
 
+# Terminating actions — block/challenge/allow/bypass stop rule evaluation.
+# log does NOT terminate (it logs and continues to the next rule).
+_TERMINATING_ACTIONS = frozenset({"block", "challenge", "allow", "bypass"})
+
+# Operators used by detect_sqli/detect_xss — not relevant for catch-all.
+_DETECT_OPERATORS = frozenset({"detect_sqli", "detect_xss"})
+
+
+def _is_catch_all_condition(cond: dict) -> bool:
+    """Return True if this single condition matches all traffic (BN108 patterns)."""
+    op = cond.get("operator", "")
+    if not isinstance(op, str) or op in _DETECT_OPERATORS:
+        return False
+    value = cond.get("value", "")
+    if not isinstance(value, str):
+        return False
+    if op in ("contains", "contains_word", "within") and value == "":
+        return True
+    if op == "begins_with" and value == "/":
+        return True
+    if op == "rx" and value in (".*", "^.*$", ".+", ""):
+        return True
+    return False
+
+
+def _check_unreachable_rules(rules_data: dict[str, Any], ctx: LintContext) -> None:
+    """BN503: Detect rules unreachable after a catch-all terminating rule.
+
+    Bunny evaluates rules in list order. If a rule has a single catch-all
+    condition (matches all traffic) and a terminating action, all subsequent
+    enabled rules in that phase are unreachable.
+    """
+    for phase_name, rules in rules_data.items():
+        if phase_name not in BUNNY_PHASE_NAMES:
+            continue
+        if phase_name not in PHASE_BY_NAME:
+            continue
+        if ctx.phase_filter and phase_name not in ctx.phase_filter:
+            continue
+        if not isinstance(rules, list):
+            continue
+        # Only WAF custom/rate phases have conditions
+        if phase_name.endswith("access_list_rules") or phase_name.endswith("edge_rules"):
+            continue
+
+        found_terminating = False
+        terminating_ref = ""
+        for rule in rules:
+            if not isinstance(rule, dict):
+                continue
+            ref = str(rule.get("ref", ""))
+            enabled = rule.get("enabled", True)
+            if not enabled:
+                continue
+
+            if found_terminating:
+                ctx.add(
+                    LintResult(
+                        rule_id="BN503",
+                        severity=Severity.WARNING,
+                        message=(
+                            f"Rule likely unreachable — preceded by catch-all"
+                            f" terminating rule {terminating_ref!r}"
+                        ),
+                        phase=phase_name,
+                        ref=ref,
+                    )
+                )
+                continue
+
+            action = rule.get("action", "")
+            conditions = rule.get("conditions", [])
+            if (
+                isinstance(action, str)
+                and action in _TERMINATING_ACTIONS
+                and isinstance(conditions, list)
+                and len(conditions) == 1
+                and isinstance(conditions[0], dict)
+                and _is_catch_all_condition(conditions[0])
+            ):
+                found_terminating = True
+                terminating_ref = ref
+
+
 def bunny_lint(rules_data: dict[str, Any], ctx: LintContext) -> None:
     """Run all Bunny Shield WAF lint checks on a zone rules file."""
     for phase_name, rules in rules_data.items():
@@ -199,3 +294,4 @@ def bunny_lint(rules_data: dict[str, Any], ctx: LintContext) -> None:
     _check_duplicate_conditions(rules_data, ctx)
     _check_plan_tier_limits(rules_data, ctx)
     _check_conflicting_access_lists(rules_data, ctx)
+    _check_unreachable_rules(rules_data, ctx)

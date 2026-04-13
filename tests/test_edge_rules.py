@@ -496,6 +496,43 @@ class TestBN704EmptyPatternMatches:
         assert "BN704" not in _ids(validate_rules([_edge_rule()], phase=_E))
 
 
+class TestBN706ActionParameterRequirements:
+    def test_bn706_redirect_missing_param1(self):
+        r = _edge_rule(action_type="redirect", action_parameter_1="", action_parameter_2="301")
+        assert "BN706" in _ids(validate_rules([r], phase=_E))
+
+    def test_bn706_redirect_missing_param2(self):
+        r = _edge_rule(
+            action_type="redirect",
+            action_parameter_1="https://example.com/new",
+            action_parameter_2="",
+        )
+        assert "BN706" in _ids(validate_rules([r], phase=_E))
+
+    def test_bn706_force_ssl_no_params_ok(self):
+        r = _edge_rule(action_type="force_ssl", action_parameter_1="", action_parameter_2="")
+        assert "BN706" not in _ids(validate_rules([r], phase=_E))
+
+    def test_bn706_set_status_code_missing_param1(self):
+        r = _edge_rule(action_type="set_status_code", action_parameter_1="")
+        assert "BN706" in _ids(validate_rules([r], phase=_E))
+
+    def test_bn706_set_status_code_with_param1_ok(self):
+        r = _edge_rule(action_type="set_status_code", action_parameter_1="404")
+        assert "BN706" not in _ids(validate_rules([r], phase=_E))
+
+    def test_bn706_set_response_header_missing_both(self):
+        r = _edge_rule(
+            action_type="set_response_header", action_parameter_1="", action_parameter_2=""
+        )
+        results = [res for res in validate_rules([r], phase=_E) if res.rule_id == "BN706"]
+        assert len(results) == 2  # both param1 and param2 missing
+
+    def test_bn706_block_request_no_params_ok(self):
+        r = _edge_rule(action_type="block_request", action_parameter_1="", action_parameter_2="")
+        assert "BN706" not in _ids(validate_rules([r], phase=_E))
+
+
 class TestBN705InvalidPatternMatchingType:
     def test_invalid(self):
         r = _edge_rule(

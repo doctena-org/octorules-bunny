@@ -71,6 +71,9 @@ BN307 = RuleMeta(
 )
 BN308 = RuleMeta("BN308", "access_list", "Invalid JA4 fingerprint format", Severity.WARNING)
 BN309 = RuleMeta("BN309", "access_list", "Duplicate entry in access list", Severity.WARNING)
+BN310 = RuleMeta(
+    "BN310", "access_list", "Duplicate organization entry in access list", Severity.WARNING
+)
 
 # BN4xx — Condition validation
 BN400 = RuleMeta("BN400", "condition", "Condition missing 'variable'", Severity.ERROR)
@@ -98,6 +101,13 @@ BN502 = RuleMeta(
     Severity.WARNING,
 )
 
+BN503 = RuleMeta(
+    "BN503",
+    "cross_rule",
+    "Rule likely unreachable after catch-all terminating rule",
+    Severity.WARNING,
+)
+
 # BN7xx — Edge rules
 BN700 = RuleMeta("BN700", "edge_rule", "Invalid or missing edge rule action_type", Severity.ERROR)
 BN701 = RuleMeta("BN701", "edge_rule", "Invalid or missing edge rule trigger type", Severity.ERROR)
@@ -107,6 +117,9 @@ BN704 = RuleMeta(
     "BN704", "edge_rule", "Edge rule trigger has empty pattern_matches", Severity.WARNING
 )
 BN705 = RuleMeta("BN705", "edge_rule", "Invalid edge rule pattern_matching_type", Severity.ERROR)
+BN706 = RuleMeta(
+    "BN706", "edge_rule", "Edge rule action missing required parameter", Severity.ERROR
+)
 
 # BN6xx — Best practice
 BN600 = RuleMeta("BN600", "best_practice", "Very short rule name", Severity.INFO)

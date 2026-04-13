@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.2] - 2026-04-13
+
+### Added
+- BN310: Duplicate organization entry in access list (WARNING).
+- BN503: Rule likely unreachable after catch-all terminating rule (WARNING).
+- BN706: Edge rule action missing required parameter (ERROR).
+
+### Changed
+- BN100, BN203: Valid options moved to `suggestion` field.
+- Reserved IP list expanded from 7 to 28 networks (adds CGNAT, link-local,
+  documentation, benchmark, multicast, IPv6 ranges).
+- Explicit `RULE_IDS` per validator module for dead-rule detection.
+
 ## [0.2.1] - 2026-04-13
 
 ### Changed

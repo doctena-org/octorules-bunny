@@ -2,7 +2,7 @@
 
 Bunny.net Shield WAF provider for [octorules](https://github.com/doctena-org/octorules) — manages Bunny Shield custom WAF rules, rate limits, access lists, edge rules, managed rule overrides, pull zone security, and bot/DDoS configuration as YAML.
 
-> **Alpha** — this provider has comprehensive offline test coverage (490 tests)
+> **Alpha** — this provider has comprehensive offline test coverage (512 tests)
 > but has not yet been tested against live Bunny Shield APIs. Use with caution
 > and report any issues.
 
@@ -268,7 +268,7 @@ This order ensures the zone never has *fewer* rules than intended during sync.
 
 ## Linting
 
-55 lint rules with the `BN` prefix validate your rules offline before sync. See [docs/lint.md](docs/lint.md) for the full reference.
+58 lint rules with the `BN` prefix validate your rules offline before sync. See [docs/lint.md](docs/lint.md) for the full reference.
 
 ```bash
 octorules lint

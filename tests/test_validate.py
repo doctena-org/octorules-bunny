@@ -452,6 +452,34 @@ class TestAccessList:
         r = _access_list(type="ip", content="8.8.8.8")
         assert "BN305" not in _ids(validate_rules([r], phase=_A))
 
+    def test_bn305_cgnat_cidr(self):
+        """CGNAT range (100.64.0.0/10) should be flagged as reserved."""
+        r = _access_list(type="cidr", content="100.64.1.0/24")
+        results = validate_rules([r], phase=_A)
+        assert "BN305" in _ids(results)
+        bn305 = [x for x in results if x.rule_id == "BN305"]
+        assert "CGNAT" in bn305[0].message
+
+    def test_bn305_documentation_rfc5737(self):
+        """RFC 5737 documentation address should be flagged."""
+        r = _access_list(type="cidr", content="192.0.2.0/24")
+        assert "BN305" in _ids(validate_rules([r], phase=_A))
+
+    def test_bn305_link_local(self):
+        """Link-local range (169.254.0.0/16) should be flagged."""
+        r = _access_list(type="cidr", content="169.254.1.0/24")
+        assert "BN305" in _ids(validate_rules([r], phase=_A))
+
+    def test_bn305_benchmark_testing(self):
+        """RFC 2544 benchmark testing range should be flagged."""
+        r = _access_list(type="cidr", content="198.18.0.0/15")
+        assert "BN305" in _ids(validate_rules([r], phase=_A))
+
+    def test_bn305_ipv6_documentation(self):
+        """IPv6 documentation prefix (2001:db8::/32) should be flagged."""
+        r = _access_list(type="cidr", content="2001:db8::/32")
+        assert "BN305" in _ids(validate_rules([r], phase=_A))
+
     def test_mixed_entries_partial_invalid(self):
         """Some entries valid, some invalid — each flagged individually."""
         r = _access_list(type="ip", content="8.8.8.8\nnot-valid\n1.1.1.1")
@@ -699,6 +727,24 @@ class TestDuplicateIP:
         results = [res for res in validate_rules([r], phase=_A) if res.rule_id == "BN309"]
         assert len(results) == 1
         assert "8.8.8.8" in results[0].message
+
+
+# ---------------------------------------------------------------------------
+# BN310 — Duplicate organization in access list
+# ---------------------------------------------------------------------------
+class TestDuplicateOrganization:
+    def test_bn310_duplicate_organization(self):
+        r = _access_list(type="organization", content="Org1\nOrg2\nOrg1")
+        assert "BN310" in _ids(validate_rules([r], phase=_A))
+
+    def test_bn310_no_duplicates(self):
+        r = _access_list(type="organization", content="Org1\nOrg2\nOrg3")
+        assert "BN310" not in _ids(validate_rules([r], phase=_A))
+
+    def test_bn310_case_insensitive(self):
+        """Organization duplicates are detected case-insensitively."""
+        r = _access_list(type="organization", content="Org1\nORG1")
+        assert "BN310" in _ids(validate_rules([r], phase=_A))
 
 
 # ---------------------------------------------------------------------------

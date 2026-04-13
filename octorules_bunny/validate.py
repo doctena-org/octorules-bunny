@@ -24,6 +24,66 @@ from octorules_bunny._enums import (
     VARIABLES_WITH_SUBVALUE,
 )
 
+# Rule IDs emitted by validate_rules() — kept in sync with _rules.py by
+# test_plugin_rule_ids_match_metas.
+RULE_IDS: frozenset[str] = frozenset(
+    {
+        "BN001",
+        "BN002",
+        "BN003",
+        "BN004",
+        "BN005",
+        "BN006",
+        "BN010",
+        "BN011",
+        "BN100",
+        "BN101",
+        "BN102",
+        "BN103",
+        "BN104",
+        "BN105",
+        "BN106",
+        "BN107",
+        "BN108",
+        "BN109",
+        "BN115",
+        "BN116",
+        "BN117",
+        "BN125",
+        "BN200",
+        "BN201",
+        "BN202",
+        "BN203",
+        "BN210",
+        "BN300",
+        "BN301",
+        "BN302",
+        "BN303",
+        "BN304",
+        "BN305",
+        "BN306",
+        "BN307",
+        "BN308",
+        "BN309",
+        "BN310",
+        "BN400",
+        "BN401",
+        "BN402",
+        "BN403",
+        "BN404",
+        "BN600",
+        "BN601",
+        "BN602",
+        "BN700",
+        "BN701",
+        "BN702",
+        "BN703",
+        "BN704",
+        "BN705",
+        "BN706",
+    }
+)
+
 _RULE_NAME_RE = re.compile(r"^[a-zA-Z0-9 ]+$")
 _COUNTRY_CODE_RE = re.compile(r"^[A-Z]{2}$")
 # JA4 TLS fingerprint: 36 chars in format a_b_c (10 + 1 + 12 + 1 + 12).
@@ -58,14 +118,38 @@ _ACCESS_LIST_FIELDS = frozenset({"ref", "type", "action", "enabled", "content", 
 # Variables that semantically require a sub-value.
 _REQUIRES_SUBVALUE = frozenset({"request_headers", "request_cookies"})
 
-# Private/reserved IP ranges.
-_PRIVATE_RANGES = [
-    ipaddress.ip_network("10.0.0.0/8"),
-    ipaddress.ip_network("172.16.0.0/12"),
-    ipaddress.ip_network("192.168.0.0/16"),
-    ipaddress.ip_network("127.0.0.0/8"),
-    ipaddress.ip_network("::1/128"),
-    ipaddress.ip_network("fc00::/7"),
+# Reserved/bogon networks (RFC 1918, loopback, link-local, etc.)
+_PRIVATE_RANGES: list[tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, str]] = [
+    # IPv4
+    (ipaddress.ip_network("10.0.0.0/8"), "RFC 1918 private"),
+    (ipaddress.ip_network("172.16.0.0/12"), "RFC 1918 private"),
+    (ipaddress.ip_network("192.168.0.0/16"), "RFC 1918 private"),
+    (ipaddress.ip_network("127.0.0.0/8"), "loopback"),
+    (ipaddress.ip_network("169.254.0.0/16"), "link-local"),
+    (ipaddress.ip_network("100.64.0.0/10"), "CGNAT (RFC 6598)"),
+    (ipaddress.ip_network("0.0.0.0/8"), "this network"),
+    (ipaddress.ip_network("192.0.2.0/24"), "documentation (RFC 5737)"),
+    (ipaddress.ip_network("198.51.100.0/24"), "documentation (RFC 5737)"),
+    (ipaddress.ip_network("203.0.113.0/24"), "documentation (RFC 5737)"),
+    (ipaddress.ip_network("192.0.0.0/24"), "IANA special purpose"),
+    (ipaddress.ip_network("192.88.99.0/24"), "6to4 relay anycast"),
+    (ipaddress.ip_network("198.18.0.0/15"), "benchmark testing (RFC 2544)"),
+    (ipaddress.ip_network("224.0.0.0/4"), "multicast"),
+    (ipaddress.ip_network("240.0.0.0/4"), "reserved for future use"),
+    # IPv6
+    (ipaddress.ip_network("::/128"), "unspecified"),
+    (ipaddress.ip_network("::1/128"), "loopback"),
+    (ipaddress.ip_network("::ffff:0:0/96"), "IPv4-mapped"),
+    (ipaddress.ip_network("64:ff9b::/96"), "NAT64 (RFC 6052)"),
+    (ipaddress.ip_network("100::/64"), "discard (RFC 6666)"),
+    (ipaddress.ip_network("2001:db8::/32"), "documentation (RFC 3849)"),
+    (ipaddress.ip_network("2001::/23"), "IANA special purpose"),
+    (ipaddress.ip_network("2001::/32"), "Teredo"),
+    (ipaddress.ip_network("2002::/16"), "6to4"),
+    (ipaddress.ip_network("fc00::/7"), "unique local"),
+    (ipaddress.ip_network("fe80::/10"), "link-local"),
+    (ipaddress.ip_network("ff00::/8"), "multicast"),
+    (ipaddress.ip_network("::ffff:0:0:0/96"), "IPv4-translated"),
 ]
 
 
@@ -90,13 +174,16 @@ def _result(
     )
 
 
-def _is_private_ip(addr_str: str) -> bool:
-    """Check if an IP or CIDR falls within private/reserved ranges."""
+def _is_private_ip(addr_str: str) -> str | None:
+    """Return description if *addr_str* falls within a reserved/bogon range, else None."""
     try:
         net = ipaddress.ip_network(addr_str, strict=False)
     except ValueError:
-        return False
-    return any(net.subnet_of(priv) for priv in _PRIVATE_RANGES if net.version == priv.version)
+        return None
+    for priv, desc in _PRIVATE_RANGES:
+        if net.version == priv.version and net.subnet_of(priv):
+            return desc
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -573,6 +660,7 @@ def _validate_rate_limit_rule(rule: dict, results: list[LintResult], phase: str)
                 phase,
                 ref,
                 field="counter_key_type",
+                suggestion=f"Valid: {sorted(STR_TO_COUNTER_KEY)}",
             )
         )
 
@@ -651,7 +739,16 @@ def _validate_access_list(rule: dict, results: list[LintResult], phase: str) -> 
     if not action:
         results.append(_result("BN003", Severity.ERROR, "Access list missing 'action'", phase, ref))
     elif isinstance(action, str) and action not in STR_TO_ACTION:
-        results.append(_result("BN100", Severity.ERROR, f"Invalid action {action!r}", phase, ref))
+        results.append(
+            _result(
+                "BN100",
+                Severity.ERROR,
+                f"Invalid action {action!r}",
+                phase,
+                ref,
+                suggestion=f"Valid: {sorted(STR_TO_ACTION)}",
+            )
+        )
 
     # BN301: content
     content = rule.get("content", "")
@@ -671,12 +768,13 @@ def _validate_access_list(rule: dict, results: list[LintResult], phase: str) -> 
                 net_strict = ipaddress.ip_network(entry, strict=True)
                 valid_nets.append(net_strict)
                 # BN305: private/reserved ranges
-                if _is_private_ip(entry):
+                priv_desc = _is_private_ip(entry)
+                if priv_desc:
                     results.append(
                         _result(
                             "BN305",
                             Severity.WARNING,
-                            f"Private/reserved IP range: {entry!r}",
+                            f"Private/reserved IP range: {entry!r} ({priv_desc})",
                             phase,
                             ref,
                             field="content",
@@ -697,12 +795,13 @@ def _validate_access_list(rule: dict, results: list[LintResult], phase: str) -> 
                             field="content",
                         )
                     )
-                    if _is_private_ip(entry):
+                    priv_desc = _is_private_ip(entry)
+                    if priv_desc:
                         results.append(
                             _result(
                                 "BN305",
                                 Severity.WARNING,
-                                f"Private/reserved IP range: {entry!r}",
+                                f"Private/reserved IP range: {entry!r} ({priv_desc})",
                                 phase,
                                 ref,
                                 field="content",
@@ -759,12 +858,13 @@ def _validate_access_list(rule: dict, results: list[LintResult], phase: str) -> 
         for entry in entries:
             try:
                 ipaddress.ip_address(entry)
-                if _is_private_ip(entry):
+                priv_desc = _is_private_ip(entry)
+                if priv_desc:
                     results.append(
                         _result(
                             "BN305",
                             Severity.WARNING,
-                            f"Private/reserved IP address: {entry!r}",
+                            f"Private/reserved IP address: {entry!r} ({priv_desc})",
                             phase,
                             ref,
                             field="content",
@@ -773,12 +873,13 @@ def _validate_access_list(rule: dict, results: list[LintResult], phase: str) -> 
             except ValueError:
                 try:
                     ipaddress.ip_network(entry, strict=False)
-                    if _is_private_ip(entry):
+                    priv_desc = _is_private_ip(entry)
+                    if priv_desc:
                         results.append(
                             _result(
                                 "BN305",
                                 Severity.WARNING,
-                                f"Private/reserved IP range: {entry!r}",
+                                f"Private/reserved IP range: {entry!r} ({priv_desc})",
                                 phase,
                                 ref,
                                 field="content",
@@ -813,6 +914,25 @@ def _validate_access_list(rule: dict, results: list[LintResult], phase: str) -> 
                 )
             else:
                 seen_ips.add(normalized)
+
+    elif list_type == "organization":
+        # BN310: duplicate organization entries (case-insensitive)
+        seen_orgs: set[str] = set()
+        for entry in entries:
+            normalized = entry.strip().lower()
+            if normalized in seen_orgs:
+                results.append(
+                    _result(
+                        "BN310",
+                        Severity.WARNING,
+                        f"Duplicate organization entry in access list: {normalized}",
+                        phase,
+                        ref,
+                        field="content",
+                    )
+                )
+            else:
+                seen_orgs.add(normalized)
 
     elif list_type == "asn":
         for entry in entries:
@@ -942,6 +1062,60 @@ def _validate_edge_rule(rule: dict, results: list[LintResult], phase: str) -> No
                 suggestion=f"Valid: {sorted(STR_TO_EDGE_ACTION)}",
             )
         )
+
+    # BN706: action parameter requirements
+    _REQUIRES_PARAM1 = frozenset(
+        {
+            "redirect",
+            "set_response_header",
+            "set_request_header",
+            "set_status_code",
+            "override_cache_time",
+            "override_cache_time_public",
+            "override_browser_cache_time",
+            "set_network_rate_limit",
+            "set_connection_limit",
+            "set_requests_per_second_limit",
+            "remove_browser_cache_response_header",
+            "override_browser_cache_response_header",
+            "origin_url",
+            "run_edge_script",
+        }
+    )
+    _REQUIRES_PARAM2 = frozenset(
+        {
+            "redirect",
+            "set_response_header",
+            "set_request_header",
+        }
+    )
+    if isinstance(action_type, str) and action_type in STR_TO_EDGE_ACTION:
+        param1 = rule.get("action_parameter_1", "")
+        param2 = rule.get("action_parameter_2", "")
+        p1_empty = not param1 or (isinstance(param1, str) and not param1.strip())
+        p2_empty = not param2 or (isinstance(param2, str) and not param2.strip())
+        if action_type in _REQUIRES_PARAM1 and p1_empty:
+            results.append(
+                _result(
+                    "BN706",
+                    Severity.ERROR,
+                    f"Edge rule action {action_type!r} requires action_parameter_1",
+                    phase,
+                    ref,
+                    field="action_parameter_1",
+                )
+            )
+        if action_type in _REQUIRES_PARAM2 and p2_empty:
+            results.append(
+                _result(
+                    "BN706",
+                    Severity.ERROR,
+                    f"Edge rule action {action_type!r} requires action_parameter_2",
+                    phase,
+                    ref,
+                    field="action_parameter_2",
+                )
+            )
 
     # BN703: invalid trigger_matching_type
     tmt = rule.get("trigger_matching_type", "")

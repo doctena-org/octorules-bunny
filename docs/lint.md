@@ -1,6 +1,6 @@
 # Lint Rule Reference
 
-`octorules lint` performs offline static analysis of your Bunny Shield WAF rules files. **55 rules** with the `BN` prefix cover structure, actions, operators, variables, transformations, conditions, rate limits, access lists, edge rules, cross-rule analysis, and best practices.
+`octorules lint` performs offline static analysis of your Bunny Shield WAF rules files. **58 rules** with the `BN` prefix cover structure, actions, operators, variables, transformations, conditions, rate limits, access lists, edge rules, cross-rule analysis, and best practices.
 
 These rules are registered automatically when `octorules-bunny` is installed. They run alongside any core and other provider rules during `octorules lint`.
 
@@ -86,6 +86,7 @@ Suppressed findings are excluded from the report but counted in the summary line
 | [BN307](#bn307--overlapping-cidrs) | Overlapping CIDRs within same access list | WARNING |
 | [BN308](#bn308--invalid-ja4-fingerprint) | Invalid JA4 fingerprint format | WARNING |
 | [BN309](#bn309--duplicate-entry-in-access-list) | Duplicate entry in access list | WARNING |
+| [BN310](#bn310--duplicate-organization-entry-in-access-list) | Duplicate organization entry in access list | WARNING |
 | [BN400](#bn400--condition-missing-variable) | Condition missing 'variable' | ERROR |
 | [BN401](#bn401--condition-missing-operator) | Condition missing 'operator' | ERROR |
 | [BN402](#bn402--detect_sqlidetect_xss-ignores-value) | detect_sqli/detect_xss operators ignore 'value' field | WARNING |
@@ -94,6 +95,7 @@ Suppressed findings are excluded from the report but counted in the summary line
 | [BN500](#bn500--duplicate-conditions-across-rules) | Duplicate conditions across rules in phase | WARNING |
 | [BN501](#bn501--rule-count-exceeds-plan-tier-limit) | Rule count may exceed plan tier limit | WARNING |
 | [BN502](#bn502--conflicting-access-lists) | Conflicting access lists (ip/cidr/country/asn/ja4 overlap with different actions) | WARNING |
+| [BN503](#bn503--rule-likely-unreachable-after-catch-all-terminating-rule) | Rule likely unreachable after catch-all terminating rule | WARNING |
 | [BN600](#bn600--very-short-rule-name) | Very short rule name | INFO |
 | [BN601](#bn601--rule-has-no-description) | Rule has no description | INFO |
 | [BN602](#bn602--access-list-is-disabled) | Access list is disabled (enabled: false) | INFO |
@@ -103,6 +105,7 @@ Suppressed findings are excluded from the report but counted in the summary line
 | [BN703](#bn703--invalid-edge-rule-trigger_matching_type) | Invalid edge rule trigger_matching_type | ERROR |
 | [BN704](#bn704--edge-rule-trigger-has-empty-pattern_matches) | Edge rule trigger has empty pattern_matches | WARNING |
 | [BN705](#bn705--invalid-edge-rule-pattern_matching_type) | Invalid edge rule pattern_matching_type | ERROR |
+| [BN706](#bn706--edge-rule-action-missing-required-parameter) | Edge rule action missing required parameter | ERROR |
 
 ---
 
@@ -939,6 +942,23 @@ The same entry appears more than once in an access list. Duplicates waste capaci
       5.6.7.0/24
 ```
 
+### BN310 — Duplicate organization entry in access list
+
+**Severity:** WARNING
+
+The same organization entry appears more than once in an `organization` type access list. Comparison is case-insensitive.
+
+**Triggers on:**
+
+```yaml
+    type: organization
+    content: |
+      ACME Corp
+      acme corp
+```
+
+**Fix:** Remove the duplicate entry.
+
 ---
 
 ## Condition Validation (BN4xx)
@@ -1121,6 +1141,34 @@ will not produce a false positive.
 ```
 
 **Fix:** Remove the overlap or consolidate into a single list.
+
+### BN503 — Rule likely unreachable after catch-all terminating rule
+
+**Severity:** WARNING
+
+A rule is preceded by a rule that matches all traffic (single catch-all condition like `contains ""`) with a terminating action (`block`, `challenge`, `allow`, `bypass`). Subsequent rules in the same phase will never execute.
+
+`log` actions do not terminate — they log and continue to the next rule.
+
+**Triggers on:**
+
+```yaml
+bunny_waf_custom_rules:
+  - ref: catch all
+    action: block
+    conditions:
+      - variable: request_url
+        operator: contains
+        value: ""
+  - ref: specific rule
+    action: block
+    conditions:
+      - variable: request_url
+        operator: contains
+        value: "/admin"
+```
+
+**Fix:** Reorder rules so the catch-all appears last, or add conditions to narrow its scope.
 
 ---
 
@@ -1364,3 +1412,28 @@ Each trigger can specify a `pattern_matching_type` controlling how the patterns 
 ```yaml
         pattern_matching_type: any
 ```
+
+### BN706 — Edge rule action missing required parameter
+
+**Severity:** ERROR
+
+An edge rule's `action_type` requires one or both `action_parameter_1` / `action_parameter_2` fields, but they are empty or missing.
+
+Actions requiring `action_parameter_1`: `redirect`, `set_response_header`, `set_request_header`, `set_status_code`, `override_cache_time`, `override_cache_time_public`, `override_browser_cache_time`, `set_network_rate_limit`, `set_connection_limit`, `set_requests_per_second_limit`, `remove_browser_cache_response_header`, `override_browser_cache_response_header`, `origin_url`, `run_edge_script`.
+
+Actions also requiring `action_parameter_2`: `redirect`, `set_response_header`, `set_request_header`.
+
+**Triggers on:**
+
+```yaml
+bunny_edge_rules:
+  - ref: bad redirect
+    action_type: redirect
+    action_parameter_1: ""
+    triggers:
+      - type: url
+        pattern_matches:
+          - "*"
+```
+
+**Fix:** Provide the required parameter(s) for the action type.
