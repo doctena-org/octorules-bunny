@@ -3,86 +3,136 @@
 import pytest
 
 from octorules_bunny._enums import (
-    ACCESS_LIST_TYPE_TO_STR,
-    ACTION_TO_STR,
-    BLOCKTIME_TO_STR,
-    COUNTER_KEY_TO_STR,
-    EXECUTION_MODE_TO_STR,
-    OPERATOR_TO_STR,
-    SENSITIVITY_TO_STR,
-    SEVERITY_TO_STR,
-    STR_TO_ACCESS_LIST_TYPE,
-    STR_TO_ACTION,
-    STR_TO_BLOCKTIME,
-    STR_TO_COUNTER_KEY,
-    STR_TO_EXECUTION_MODE,
-    STR_TO_OPERATOR,
-    STR_TO_SENSITIVITY,
-    STR_TO_SEVERITY,
-    STR_TO_TIMEFRAME,
-    STR_TO_TRANSFORMATION,
-    STR_TO_VARIABLE,
-    TIMEFRAME_TO_STR,
-    TRANSFORMATION_TO_STR,
-    VARIABLE_TO_STR,
-    _resolve,
-    _unresolve,
+    ACCESS_LIST_ACTION,
+    ACCESS_LIST_TYPE,
+    ACTION,
+    BLOCKTIME,
+    COUNTER_KEY,
+    EDGE_ACTION,
+    EDGE_PATTERN_MATCH,
+    EDGE_TRIGGER,
+    EDGE_TRIGGER_MATCH,
+    EXECUTION_MODE,
+    OPERATOR,
+    SENSITIVITY,
+    SEVERITY,
+    TIMEFRAME,
+    TRANSFORMATION,
+    VARIABLE,
+    EnumMap,
 )
 
-# All (forward, reverse) map pairs to test.
-_ENUM_PAIRS = [
-    (ACTION_TO_STR, STR_TO_ACTION, "action"),
-    (OPERATOR_TO_STR, STR_TO_OPERATOR, "operator"),
-    (VARIABLE_TO_STR, STR_TO_VARIABLE, "variable"),
-    (TRANSFORMATION_TO_STR, STR_TO_TRANSFORMATION, "transformation"),
-    (SEVERITY_TO_STR, STR_TO_SEVERITY, "severity"),
-    (TIMEFRAME_TO_STR, STR_TO_TIMEFRAME, "timeframe"),
-    (BLOCKTIME_TO_STR, STR_TO_BLOCKTIME, "blocktime"),
-    (ACCESS_LIST_TYPE_TO_STR, STR_TO_ACCESS_LIST_TYPE, "access_list_type"),
-    (COUNTER_KEY_TO_STR, STR_TO_COUNTER_KEY, "counter_key"),
-    (EXECUTION_MODE_TO_STR, STR_TO_EXECUTION_MODE, "execution_mode"),
-    (SENSITIVITY_TO_STR, STR_TO_SENSITIVITY, "sensitivity"),
+# All EnumMap instances to test.
+_ALL_MAPS = [
+    (ACTION, "action", 5),
+    (ACCESS_LIST_ACTION, "access_list_action", 5),
+    (OPERATOR, "operator", 15),
+    (VARIABLE, "variable", 26),
+    (TRANSFORMATION, "transformation", 21),
+    (SEVERITY, "severity", 3),
+    (TIMEFRAME, "timeframe", 6),
+    (BLOCKTIME, "blocktime", 6),
+    (ACCESS_LIST_TYPE, "access_list_type", 6),
+    (COUNTER_KEY, "counter_key", 8),
+    (EXECUTION_MODE, "execution_mode", 3),
+    (SENSITIVITY, "sensitivity", 4),
+    (EDGE_ACTION, "edge_action", 35),
+    (EDGE_TRIGGER, "edge_trigger", 14),
+    (EDGE_PATTERN_MATCH, "edge_pattern_match", 3),
+    (EDGE_TRIGGER_MATCH, "edge_trigger_match", 3),
 ]
 
 
-def _enum_id(x):
-    return x if isinstance(x, str) else ""
+def _map_id(x):
+    return x[1] if isinstance(x, tuple) else ""
 
 
+# ---------------------------------------------------------------------------
+# EnumMap class tests
+# ---------------------------------------------------------------------------
+class TestEnumMapClass:
+    """Core EnumMap class behaviour."""
+
+    def test_resolve_known_int(self):
+        em = EnumMap({1: "block", 2: "log"})
+        assert em.resolve(1) == "block"
+
+    def test_resolve_unknown_int_returns_str(self):
+        em = EnumMap({1: "block"})
+        assert em.resolve(99) == "99"
+
+    def test_resolve_passthrough_str(self):
+        em = EnumMap({1: "block"})
+        assert em.resolve("block") == "block"
+        assert em.resolve("unknown") == "unknown"
+
+    def test_unresolve_known_str(self):
+        em = EnumMap({1: "block", 2: "log"})
+        assert em.unresolve("block") == 1
+
+    def test_unresolve_unknown_str_returns_str(self):
+        em = EnumMap({1: "block"})
+        assert em.unresolve("unknown") == "unknown"
+
+    def test_unresolve_passthrough_int(self):
+        em = EnumMap({1: "block"})
+        assert em.unresolve(1) == 1
+
+    def test_contains_str(self):
+        em = EnumMap({1: "block", 2: "log"})
+        assert "block" in em
+        assert "log" in em
+        assert "unknown" not in em
+
+    def test_iter_yields_str_names(self):
+        em = EnumMap({1: "block", 2: "log"})
+        assert sorted(em) == ["block", "log"]
+
+    def test_len(self):
+        em = EnumMap({1: "a", 2: "b", 3: "c"})
+        assert len(em) == 3
+
+    def test_empty_map(self):
+        em = EnumMap({})
+        assert len(em) == 0
+        assert em.resolve(1) == "1"
+        assert em.unresolve("x") == "x"
+        assert list(em) == []
+
+    def test_repr(self):
+        em = EnumMap({1: "block"})
+        r = repr(em)
+        assert "EnumMap" in r
+        assert "block" in r
+
+    def test_bijective_requirement(self):
+        """Duplicate string values should raise ValueError."""
+        with pytest.raises(ValueError, match="duplicate"):
+            EnumMap({1: "block", 2: "block"})
+
+
+# ---------------------------------------------------------------------------
+# Round-trip tests on all module-level EnumMap instances
+# ---------------------------------------------------------------------------
 class TestEnumRoundTrip:
-    @pytest.mark.parametrize("forward,reverse,name", _ENUM_PAIRS, ids=_enum_id)
-    def test_round_trip(self, forward, reverse, name):
-        """Every int key round-trips through forward then reverse."""
-        for int_val, str_val in forward.items():
-            got = reverse.get(str_val)
+    @pytest.mark.parametrize("em,name,_count", _ALL_MAPS, ids=_map_id)
+    def test_round_trip(self, em, name, _count):
+        """Every int key round-trips through resolve then unresolve."""
+        for int_val, str_val in em.items():
+            got = em.unresolve(str_val)
             assert got == int_val, f"{name}: {int_val} -> {str_val!r} -> {got}"
 
-    @pytest.mark.parametrize("forward,reverse,name", _ENUM_PAIRS, ids=_enum_id)
-    def test_same_length(self, forward, reverse, name):
-        """Forward and reverse maps have the same number of entries."""
-        assert len(forward) == len(reverse), f"{name}: mismatch"
-
-    @pytest.mark.parametrize("forward,reverse,name", _ENUM_PAIRS, ids=_enum_id)
-    def test_no_duplicate_values(self, forward, reverse, name):
-        """No two int keys map to the same string (bijective)."""
-        assert len(set(forward.values())) == len(forward), f"{name}: dupes"
+    @pytest.mark.parametrize("em,name,_count", _ALL_MAPS, ids=_map_id)
+    def test_no_duplicate_values(self, em, name, _count):
+        """Bijective: no two int keys map to the same string."""
+        strs = [s for _, s in em.items()]
+        assert len(set(strs)) == len(strs), f"{name}: dupes"
 
 
 class TestEnumCounts:
-    def test_action_count(self):
-        assert len(ACTION_TO_STR) == 5
-
-    def test_operator_count(self):
-        assert len(OPERATOR_TO_STR) == 15
-
-    def test_variable_count(self):
-        assert len(VARIABLE_TO_STR) == 26
-
-    def test_transformation_count(self):
-        assert len(TRANSFORMATION_TO_STR) == 21
-
-    def test_access_list_type_count(self):
-        assert len(ACCESS_LIST_TYPE_TO_STR) == 6
+    @pytest.mark.parametrize("em,name,expected", _ALL_MAPS, ids=_map_id)
+    def test_count(self, em, name, expected):
+        assert len(em) == expected, f"{name}: expected {expected}, got {len(em)}"
 
 
 class TestOperatorGaps:
@@ -90,24 +140,39 @@ class TestOperatorGaps:
 
     def test_gap_values_not_in_map(self):
         for gap in (10, 11, 13, 16):
-            assert gap not in OPERATOR_TO_STR
+            assert OPERATOR.resolve(gap) == str(gap)
 
 
 class TestResolveHelpers:
+    """Backward-compat: resolve/unresolve methods match old _resolve/_unresolve."""
+
     def test_resolve_int(self):
-        assert _resolve(ACTION_TO_STR, 1) == "block"
+        assert ACTION.resolve(1) == "block"
 
     def test_resolve_unknown_int(self):
-        assert _resolve(ACTION_TO_STR, 99) == "99"
+        assert ACTION.resolve(99) == "99"
 
     def test_resolve_passthrough_str(self):
-        assert _resolve(ACTION_TO_STR, "block") == "block"
+        assert ACTION.resolve("block") == "block"
 
     def test_unresolve_str(self):
-        assert _unresolve(STR_TO_ACTION, "block") == 1
+        assert ACTION.unresolve("block") == 1
 
     def test_unresolve_unknown_str(self):
-        assert _unresolve(STR_TO_ACTION, "unknown") == "unknown"
+        assert ACTION.unresolve("unknown") == "unknown"
 
     def test_unresolve_passthrough_int(self):
-        assert _unresolve(STR_TO_ACTION, 1) == 1
+        assert ACTION.unresolve(1) == 1
+
+
+class TestEnumMapItems:
+    """items() yields (int, str) pairs like dict.items()."""
+
+    def test_items_returns_pairs(self):
+        em = EnumMap({1: "a", 2: "b"})
+        assert sorted(em.items()) == [(1, "a"), (2, "b")]
+
+    def test_action_items_known(self):
+        pairs = dict(ACTION.items())
+        assert pairs[1] == "block"
+        assert pairs[4] == "allow"

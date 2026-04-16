@@ -36,6 +36,47 @@ class _TransientHTTPError(Exception):
 
 
 # ---------------------------------------------------------------------------
+# Pagination format detection
+# ---------------------------------------------------------------------------
+def _extract_page(body: dict | list, *, current_page: int = 1) -> tuple[list, bool]:
+    """Extract items and has-more flag from a Bunny API response.
+
+    The Bunny API uses several pagination formats:
+    - Plain list: single-page, no pagination.
+    - Shield format: ``{"data": [...], "page": {"totalPages": N}}``.
+    - Pull Zone format: ``{"Items": [...], "HasMoreItems": bool}``.
+    - Single dict: ``{"items": [...]}``, no pagination wrapper.
+
+    Returns ``(items, has_more)`` where *items* is always a list and
+    *has_more* is ``True`` if additional pages remain.
+    """
+    if isinstance(body, list):
+        return body, False
+    if not isinstance(body, dict):
+        return [], False
+
+    # Extract items from whichever key the API uses.
+    items = body.get("data", body.get("items", body.get("Items", [])))
+    if isinstance(items, dict):
+        items = list(items.values())
+    if not isinstance(items, list):
+        items = []
+
+    # Detect pagination format and compute has_more.
+    page_info = body.get("page", {})
+    if isinstance(page_info, dict) and "totalPages" in page_info:
+        # Shield API: {"page": {"totalPages": N}}
+        has_more = current_page < page_info["totalPages"]
+    elif "HasMoreItems" in body:
+        # Pull Zone API: {"HasMoreItems": bool}
+        has_more = bool(body["HasMoreItems"])
+    else:
+        has_more = False
+
+    return items, has_more
+
+
+# ---------------------------------------------------------------------------
 # Client
 # ---------------------------------------------------------------------------
 class BunnyShieldClient:
@@ -95,11 +136,12 @@ class BunnyShieldClient:
         """
         log.debug("%s %s", method, path)
         _retryable = (_TransientHTTPError, httpx.TransportError, ValueError)
-        attempt_num = [0]
+        attempt = 0
 
         def _do():
-            cur = attempt_num[0]
-            attempt_num[0] += 1
+            nonlocal attempt
+            cur = attempt
+            attempt += 1
             try:
                 resp = self._http.request(method, path, **kwargs)
                 resp.raise_for_status()
@@ -126,26 +168,9 @@ class BunnyShieldClient:
         results: list[dict] = []
         for page_num in range(1, _MAX_PAGES + 1):
             body = self._request("GET", path, params={"page": page_num, "perPage": per_page})
-            # Shield API wraps paginated data in various structures.
-            if isinstance(body, list):
-                items = body
-                total_pages = 1
-            elif isinstance(body, dict):
-                items = body.get("data", body.get("items", []))
-                if isinstance(items, dict):
-                    items = list(items.values())
-                page_info = body.get("page", {})
-                if isinstance(page_info, dict):
-                    total_pages = page_info.get("totalPages", 1)
-                else:
-                    total_pages = 1
-            else:
-                break
-
-            if isinstance(items, list):
-                results.extend(items)
-
-            if page_num >= total_pages:
+            items, has_more = _extract_page(body, current_page=page_num)
+            results.extend(items)
+            if not has_more:
                 break
         else:
             log.warning("Pagination exceeded %d pages for %s", _MAX_PAGES, path)
@@ -231,8 +256,23 @@ class BunnyShieldClient:
     # -- Access Lists -------------------------------------------------------
 
     def list_access_lists(self, shield_zone_id: int) -> list[dict]:
-        """List all access lists for a shield zone."""
-        return self._paginate(f"/shield/shield-zone/{shield_zone_id}/access-lists")
+        """List all custom access lists for a shield zone.
+
+        The API returns ``{managedLists: [...], customLists: [...]}``
+        (not paginated).  We only return ``customLists`` — managed lists
+        are Bunny-maintained and not user-editable.
+        """
+        body = self._request("GET", f"/shield/shield-zone/{shield_zone_id}/access-lists")
+        if isinstance(body, dict):
+            return body.get("customLists") or []
+        return body if isinstance(body, list) else []
+
+    def get_access_list(self, shield_zone_id: int, list_id: int) -> dict:
+        """Fetch a single custom access list (includes content)."""
+        return self._request(
+            "GET",
+            f"/shield/shield-zone/{shield_zone_id}/access-lists/{list_id}",
+        )
 
     def create_access_list(self, shield_zone_id: int, payload: dict) -> dict:
         """Create a custom access list."""
@@ -243,10 +283,18 @@ class BunnyShieldClient:
         )
 
     def update_access_list(self, shield_zone_id: int, list_id: int, payload: dict) -> dict:
-        """Update a custom access list."""
+        """Update a custom access list's name/content."""
         return self._request(
             "PATCH",
             f"/shield/shield-zone/{shield_zone_id}/access-lists/{list_id}",
+            json=payload,
+        )
+
+    def update_access_list_config(self, shield_zone_id: int, config_id: int, payload: dict) -> dict:
+        """Update an access list's configuration (action + enabled)."""
+        return self._request(
+            "PATCH",
+            f"/shield/shield-zone/{shield_zone_id}/access-lists/configurations/{config_id}",
             json=payload,
         )
 
@@ -271,6 +319,20 @@ class BunnyShieldClient:
             json=payload,
         )
 
+    # -- Upload Scanning ----------------------------------------------------
+
+    def get_upload_scanning(self, shield_zone_id: int) -> dict:
+        """Get upload scanning configuration."""
+        return self._request("GET", f"/shield/shield-zone/{shield_zone_id}/upload-scanning")
+
+    def update_upload_scanning(self, shield_zone_id: int, payload: dict) -> dict:
+        """Update upload scanning configuration."""
+        return self._request(
+            "PATCH",
+            f"/shield/shield-zone/{shield_zone_id}/upload-scanning",
+            json=payload,
+        )
+
 
 # ---------------------------------------------------------------------------
 # Retry-After support
@@ -290,6 +352,7 @@ def _sleep_for_retry_after(response: httpx.Response, attempt: int) -> None:
     try:
         retry_after = int(raw)
     except (ValueError, TypeError):
+        log.debug("Non-integer Retry-After header %r, ignoring", raw)
         return
     if retry_after <= 0:
         return

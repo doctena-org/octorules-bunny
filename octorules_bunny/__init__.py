@@ -7,10 +7,11 @@ from octorules_bunny.provider import BunnyShieldProvider
 from octorules_bunny.validate import validate_rules
 
 register_phases(BUNNY_PHASES)
-register_api_fields("rule", {"_api_id", "shieldZoneId", "Guid"})
+register_api_fields("rule", {"_api_id", "_config_id", "shieldZoneId", "Guid"})
 register_non_phase_key("bunny_waf_managed_rules")
 register_non_phase_key("bunny_shield_config")
 register_non_phase_key("bunny_pullzone_security")
+register_non_phase_key("bunny_curated_threat_lists")
 
 from octorules_bunny.linter import register_bunny_linter  # noqa: E402
 
@@ -27,6 +28,10 @@ register_shield_config()
 from octorules_bunny._pullzone_security import register_pullzone_security  # noqa: E402
 
 register_pullzone_security()
+
+from octorules_bunny._curated_lists import register_curated_lists  # noqa: E402
+
+register_curated_lists()
 
 __all__ = [
     "BUNNY_PHASE_IDS",

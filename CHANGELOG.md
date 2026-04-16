@@ -5,6 +5,74 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-04-16
+
+### Added
+- `bunny_curated_threat_lists` non-phase section: enable/disable and
+  configure actions for Bunny's curated threat intelligence lists (VPN
+  Providers, TOR Exit Nodes, Common Datacenters, AbuseIPDB, FireHOL,
+  etc.).  Supports plan, sync, dump, lint validation, and formatting.
+- `bunny_shield_config.waf` section: manage all WAF settings including
+  `enabled` (master switch), `execution_mode` (log/block),
+  `learning_mode`, body inspection limits, `whitelabel_response_pages`,
+  `realtime_threat_intelligence_enabled`, `profile_id`,
+  `engine_config`, and request header logging.
+- `bot_detection.fingerprint_aggression` field for browser fingerprint
+  aggression level.
+- `bunny_pullzone_security.logging_ip_anonymization_type` replaces the
+  non-functional `logging_ip_anonymization` bool with the actual
+  `LogAnonymizationType` int (0=none, 1=one octet, 2=two octets).
+- `bunny_shield_config.upload_scanning` section: manage CSAM and
+  antivirus upload scanning settings.
+- BN501 now checks access list count against plan tier limits (Basic=1,
+  Advanced=5, Business=10).
+- Plan tier auto-detection from the Shield API `planType` field during
+  zone resolution. The `plan` provider kwarg serves as a fallback.
+- Business and Enterprise tiers added to `_PLAN_LIMITS` and
+  `_PLAN_TYPE_MAP` (planType 0=Basic, 1=Advanced, 2=Business,
+  3=Enterprise).
+
+### Changed
+- Enum maps refactored from 14 dict pairs + free functions to `EnumMap` class
+  with `resolve()`/`unresolve()` methods, simplifying imports across all
+  modules.
+- Shield config and pull zone security extensions unified via shared
+  `_config_base.py` module (`ConfigChange`, `ConfigPlan`, `ConfigFormatter`),
+  eliminating ~200 lines of duplicate dataclass/formatter/diff code.
+- Linter cross-phase checks refactored to use `_iter_phases()` helper.
+- `BN_RULE_METAS` changed from `globals()` introspection to explicit tuple.
+- Pagination format detection extracted to `_extract_page()` helper.
+- Condition duplicate detection uses tuple keys instead of `json.dumps()`.
+- Private/reserved IP range lookup partitioned by IP version (`_PRIVATE_V4`/
+  `_PRIVATE_V6`), halving average scan length per address.
+- Access list detail fetches run in parallel when `max_workers > 1`.
+
+### Fixed
+- Shield zone PATCH now uses the correct `{"shieldZoneId": N, "shieldZone": {...}}`
+  envelope required by the Bunny API (previously sent flat fields, silently
+  ignored).
+- Bot detection normalization/denormalization updated for the nested API
+  format (`requestIntegrity.sensitivity`, `ipAddress.sensitivity`,
+  `browserFingerprint.sensitivity`/`complexEnabled`).
+- Pull zone security list fields (`blocked_ips`, `blocked_countries`,
+  `blocked_referrers`, `allowed_referrers`, `cors_extensions`) correctly
+  typed as lists, matching the actual Bunny API format.
+- Pull zone field name corrected: `LoggingIPAnonymizationEnabled` (was
+  `LoggingIPAnonymization`).
+- Rate limit rules now include `severity` in normalization and `severityType`
+  in denormalization, fixing idempotency drift on re-plan.
+- `ruleDescription` is now always sent for custom WAF and rate limit rules
+  (even when empty), fixing 400 errors from the API.
+- Access list content trailing newline stripped via `prepare_rule` hook,
+  preventing perpetual drift from YAML block scalars.
+- `_config_id` registered as an API field so it is excluded from diffs.
+- Access list detail fetch catches specific exceptions instead of bare
+  `except Exception`, and logs warnings on failure.
+- Access list create logs a warning when the config update step fails after
+  the list was created (partial state).
+- Non-integer `Retry-After` headers now log a debug message instead of being
+  silently ignored.
+
 ## [0.2.2] - 2026-04-13
 
 ### Added

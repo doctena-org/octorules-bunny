@@ -20,8 +20,15 @@ class TestRuleRegistration:
         ids = [m.rule_id for m in BN_RULE_METAS]
         assert len(ids) == len(set(ids)), f"Duplicate rule IDs: {ids}"
 
-    def test_minimum_rule_count(self):
-        assert len(BN_RULE_METAS) >= 35
+    def test_exact_rule_count(self):
+        assert len(BN_RULE_METAS) == 58, (
+            f"Expected 58 rule metas, got {len(BN_RULE_METAS)}. "
+            f"Update this count when adding/removing rules."
+        )
+
+    def test_metas_is_tuple(self):
+        """BN_RULE_METAS must be an explicit tuple, not a globals() scan."""
+        assert isinstance(BN_RULE_METAS, tuple)
 
     def test_plugin_rule_ids_match_metas(self):
         meta_ids = frozenset(r.rule_id for r in BN_RULE_METAS)
@@ -154,8 +161,8 @@ class TestCrossPhaseChecks:
         rule_ids = [r.rule_id for r in ctx.results]
         assert "BN501" in rule_ids
 
-    def test_bn501_respects_plan_tier_free(self):
-        """When plan_tier='free', BN501 checks only the free limit."""
+    def test_bn501_respects_plan_tier_basic(self):
+        """When plan_tier='basic', BN501 checks only the basic limit."""
         rules_data = {
             "bunny_waf_custom_rules": [
                 {
@@ -170,11 +177,11 @@ class TestCrossPhaseChecks:
                 for i in range(3)
             ]
         }
-        ctx = _ctx(plan_tier="free")
+        ctx = _ctx(plan_tier="basic")
         bunny_lint(rules_data, ctx)
         bn501 = [r for r in ctx.results if r.rule_id == "BN501"]
         assert len(bn501) == 1
-        assert "free" in bn501[0].message
+        assert "basic" in bn501[0].message
 
     def test_bn501_respects_plan_tier_advanced_under_limit(self):
         """When plan_tier='advanced' and rule count is within limit, no BN501."""
@@ -240,7 +247,65 @@ class TestCrossPhaseChecks:
         bn501 = [r for r in ctx.results if r.rule_id == "BN501"]
         # 3 rules exceeds free limit of 0, so should warn
         assert len(bn501) == 1
-        assert "free" in bn501[0].message
+        assert "basic" in bn501[0].message
+
+    def test_bn501_access_list_count_basic(self):
+        """Basic tier: 1 access list allowed, 2 should trigger BN501."""
+        rules_data = {
+            "bunny_waf_access_list_rules": [
+                {
+                    "ref": f"list-{i}",
+                    "type": "ip",
+                    "action": "block",
+                    "enabled": True,
+                    "content": f"1.2.3.{i}",
+                }
+                for i in range(2)
+            ]
+        }
+        ctx = _ctx(plan_tier="basic")
+        bunny_lint(rules_data, ctx)
+        bn501 = [r for r in ctx.results if r.rule_id == "BN501"]
+        assert len(bn501) == 1
+        assert "access_list" in bn501[0].phase
+
+    def test_bn501_access_list_count_advanced_under(self):
+        """Advanced tier: 5 access lists allowed, 3 should not trigger."""
+        rules_data = {
+            "bunny_waf_access_list_rules": [
+                {
+                    "ref": f"list-{i}",
+                    "type": "ip",
+                    "action": "block",
+                    "enabled": True,
+                    "content": f"1.2.3.{i}",
+                }
+                for i in range(3)
+            ]
+        }
+        ctx = _ctx(plan_tier="advanced")
+        bunny_lint(rules_data, ctx)
+        bn501 = [r for r in ctx.results if r.rule_id == "BN501"]
+        assert len(bn501) == 0
+
+    def test_bn501_access_list_count_advanced_over(self):
+        """Advanced tier: 5 access lists allowed, 6 should trigger."""
+        rules_data = {
+            "bunny_waf_access_list_rules": [
+                {
+                    "ref": f"list-{i}",
+                    "type": "ip",
+                    "action": "block",
+                    "enabled": True,
+                    "content": f"1.2.3.{i}",
+                }
+                for i in range(6)
+            ]
+        }
+        ctx = _ctx(plan_tier="advanced")
+        bunny_lint(rules_data, ctx)
+        bn501 = [r for r in ctx.results if r.rule_id == "BN501"]
+        assert len(bn501) == 1
 
     def test_bn502_conflicting_access_lists(self):
         rules_data = {

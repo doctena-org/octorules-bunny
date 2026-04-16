@@ -38,9 +38,40 @@ class TestProperties:
         provider = BunnyShieldProvider(client=mock_bunny_client, api_key="k")
         assert provider.zone_plans == {}
 
-    def test_zone_plans_populated_with_plan_kwarg(
+    @pytest.mark.parametrize(
+        "plan_type,expected_tier",
+        [(0, "basic"), (1, "advanced"), (2, "business"), (3, "enterprise")],
+    )
+    def test_zone_plans_auto_detected_from_api(
+        self, mock_bunny_client, sample_pull_zones, plan_type, expected_tier
+    ):
+        """planType in the Shield Zone response auto-sets the zone tier."""
+        mock_bunny_client.list_pull_zones.return_value = sample_pull_zones
+        mock_bunny_client.get_shield_zone_by_pullzone.return_value = {
+            "shieldZoneId": 999,
+            "pullZoneId": 100,
+            "planType": plan_type,
+        }
+        provider = BunnyShieldProvider(client=mock_bunny_client, api_key="k")
+        provider.resolve_zone_id("my-cdn")
+        assert provider.zone_plans == {"my-cdn": expected_tier}
+
+    def test_zone_plans_api_tier_overrides_kwarg(self, mock_bunny_client, sample_pull_zones):
+        """API-detected tier takes precedence over the plan kwarg."""
+        mock_bunny_client.list_pull_zones.return_value = sample_pull_zones
+        mock_bunny_client.get_shield_zone_by_pullzone.return_value = {
+            "shieldZoneId": 999,
+            "pullZoneId": 100,
+            "planType": 1,
+        }
+        provider = BunnyShieldProvider(client=mock_bunny_client, api_key="k", plan="basic")
+        provider.resolve_zone_id("my-cdn")
+        assert provider.zone_plans == {"my-cdn": "advanced"}
+
+    def test_zone_plans_kwarg_fallback_when_no_plantype(
         self, mock_bunny_client, sample_pull_zones, sample_shield_zone
     ):
+        """plan kwarg is used when the API response has no planType."""
         mock_bunny_client.list_pull_zones.return_value = sample_pull_zones
         mock_bunny_client.get_shield_zone_by_pullzone.return_value = sample_shield_zone
         provider = BunnyShieldProvider(client=mock_bunny_client, api_key="k", plan="advanced")
@@ -61,7 +92,7 @@ class TestProperties:
     ):
         mock_bunny_client.list_pull_zones.return_value = sample_pull_zones
         mock_bunny_client.get_shield_zone_by_pullzone.return_value = sample_shield_zone
-        provider = BunnyShieldProvider(client=mock_bunny_client, api_key="k", plan="free")
+        provider = BunnyShieldProvider(client=mock_bunny_client, api_key="k", plan="basic")
         provider.resolve_zone_id("my-cdn")
         copy = provider.zone_plans
         copy["injected"] = "bad"
@@ -69,7 +100,8 @@ class TestProperties:
 
 
 class TestInit:
-    def test_missing_api_key_raises(self):
+    def test_missing_api_key_raises(self, monkeypatch):
+        monkeypatch.delenv("BUNNY_API_KEY", raising=False)
         with pytest.raises(ConfigError, match="Bunny API key not specified"):
             BunnyShieldProvider()
 
@@ -111,6 +143,17 @@ class TestResolveZoneId:
         provider = BunnyShieldProvider(client=mock_bunny_client, api_key="k")
         with pytest.raises(Exception, match="Shield Zone not found"):
             provider.resolve_zone_id("my-cdn")
+
+    def test_data_envelope_unwrapping(self, mock_bunny_client, sample_pull_zones):
+        """Shield API wraps response in {"data": {...}} — resolve_zone_id unwraps it."""
+        mock_bunny_client.list_pull_zones.return_value = sample_pull_zones
+        mock_bunny_client.get_shield_zone_by_pullzone.return_value = {
+            "data": {"shieldZoneId": 12345, "pullZoneId": 100},
+            "error": None,
+        }
+        provider = BunnyShieldProvider(client=mock_bunny_client, api_key="k")
+        result = provider.resolve_zone_id("my-cdn")
+        assert result == "12345"
 
     def test_pull_zones_cached(self, mock_bunny_client, sample_pull_zones, sample_shield_zone):
         """list_pull_zones is called once and cached across resolve_zone_id calls."""
@@ -154,13 +197,28 @@ class TestGetPhaseRules:
 
     def test_access_list_rules(self, mock_bunny_client, sample_access_lists):
         mock_bunny_client.list_access_lists.return_value = sample_access_lists
+        # Individual fetch returns content (list endpoint doesn't include it)
+        mock_bunny_client.get_access_list.side_effect = [
+            {
+                "data": {"id": 301, "name": "block countries", "type": 3, "content": "CN\nRU"},
+            },
+            {
+                "data": {
+                    "id": 302,
+                    "name": "allow ips",
+                    "type": 0,
+                    "content": "10.0.0.1\n192.168.1.1",
+                },
+            },
+        ]
         provider = BunnyShieldProvider(client=mock_bunny_client, api_key="k")
         rules = provider.get_phase_rules(_zs(), "bunny_waf_access_list")
         assert len(rules) == 2
-        assert rules[0]["ref"] == "301"
+        assert rules[0]["ref"] == "block countries"
         assert rules[0]["type"] == "country"
         assert rules[0]["action"] == "block"
         assert rules[0]["content"] == "CN\nRU"
+        assert rules[0]["_config_id"] == 42
 
     def test_unknown_phase_returns_empty(self, mock_bunny_client):
         provider = BunnyShieldProvider(client=mock_bunny_client, api_key="k")
@@ -281,22 +339,88 @@ class TestPutRateLimitRules:
 
 
 class TestPutAccessListRules:
+    def _mock_get_access_list(self, mock_bunny_client):
+        """Mock individual access list fetches (get_phase_rules fetches each)."""
+        mock_bunny_client.get_access_list.side_effect = [
+            {
+                "data": {
+                    "id": 301,
+                    "name": "block countries",
+                    "type": 3,
+                    "content": "CN\nRU",
+                },
+            },
+            {
+                "data": {
+                    "id": 302,
+                    "name": "allow ips",
+                    "type": 0,
+                    "content": "10.0.0.1\n192.168.1.1",
+                },
+            },
+        ]
+
     def test_add_access_list(self, mock_bunny_client, sample_access_lists):
-        mock_bunny_client.list_access_lists.return_value = sample_access_lists
+        self._mock_get_access_list(mock_bunny_client)
+        # create_access_list returns response with the new list id
+        mock_bunny_client.create_access_list.return_value = {
+            "data": {"id": 400, "name": "new list", "type": 2},
+        }
+        # After create, _create_rule re-fetches summaries to find configurationId
+        new_summary = {
+            "listId": 400,
+            "configurationId": 99,
+            "name": "new list",
+            "type": 2,
+            "action": 1,
+            "isEnabled": True,
+            "entryCount": 0,
+        }
+        mock_bunny_client.list_access_lists.side_effect = [
+            sample_access_lists,  # first call: from get_phase_rules
+            [*sample_access_lists, new_summary],  # second: from _create_rule
+        ]
         provider = BunnyShieldProvider(client=mock_bunny_client, api_key="k")
 
+        # Refs must match the name field from sample_access_lists
         new_rules = [
-            {"ref": "301", "type": "country", "action": "block", "enabled": True, "content": "CN"},
-            {"ref": "302", "type": "ip", "action": "allow", "enabled": True, "content": "1.2.3.4"},
-            {"ref": "new", "type": "asn", "action": "block", "enabled": True, "content": "AS1234"},
+            {
+                "ref": "block countries",
+                "type": "country",
+                "action": "block",
+                "enabled": True,
+                "content": "CN",
+            },
+            {
+                "ref": "allow ips",
+                "type": "ip",
+                "action": "allow",
+                "enabled": True,
+                "content": "1.2.3.4",
+            },
+            {
+                "ref": "new list",
+                "type": "asn",
+                "action": "block",
+                "enabled": True,
+                "content": "AS1234",
+            },
         ]
-        count = provider.put_phase_rules(_zs(), "bunny_waf_access_list", new_rules)
+        count = provider.put_phase_rules(
+            _zs(),
+            "bunny_waf_access_list",
+            new_rules,
+        )
         assert count == 3
+        # Two existing lists updated (content + config for each)
         assert mock_bunny_client.update_access_list.call_count == 2
+        # 2 update configs + 1 create config
+        assert mock_bunny_client.update_access_list_config.call_count == 3
         assert mock_bunny_client.create_access_list.call_count == 1
 
     def test_remove_access_list(self, mock_bunny_client, sample_access_lists):
         mock_bunny_client.list_access_lists.return_value = sample_access_lists
+        self._mock_get_access_list(mock_bunny_client)
         provider = BunnyShieldProvider(client=mock_bunny_client, api_key="k")
         provider.put_phase_rules(_zs(), "bunny_waf_access_list", [])
         assert mock_bunny_client.delete_access_list.call_count == 2

@@ -22,34 +22,20 @@ from octorules_bunny._client import (
     BunnyShieldClient,
 )
 from octorules_bunny._enums import (
-    ACCESS_LIST_TYPE_TO_STR,
-    ACTION_TO_STR,
-    BLOCKTIME_TO_STR,
-    COUNTER_KEY_TO_STR,
-    EDGE_ACTION_TO_STR,
-    EDGE_PATTERN_MATCH_TO_STR,
-    EDGE_TRIGGER_MATCH_TO_STR,
-    EDGE_TRIGGER_TO_STR,
-    OPERATOR_TO_STR,
-    SEVERITY_TO_STR,
-    STR_TO_ACCESS_LIST_TYPE,
-    STR_TO_ACTION,
-    STR_TO_BLOCKTIME,
-    STR_TO_COUNTER_KEY,
-    STR_TO_EDGE_ACTION,
-    STR_TO_EDGE_PATTERN_MATCH,
-    STR_TO_EDGE_TRIGGER,
-    STR_TO_EDGE_TRIGGER_MATCH,
-    STR_TO_OPERATOR,
-    STR_TO_SEVERITY,
-    STR_TO_TIMEFRAME,
-    STR_TO_TRANSFORMATION,
-    STR_TO_VARIABLE,
-    TIMEFRAME_TO_STR,
-    TRANSFORMATION_TO_STR,
-    VARIABLE_TO_STR,
-    _resolve,
-    _unresolve,
+    ACCESS_LIST_ACTION,
+    ACCESS_LIST_TYPE,
+    ACTION,
+    BLOCKTIME,
+    COUNTER_KEY,
+    EDGE_ACTION,
+    EDGE_PATTERN_MATCH,
+    EDGE_TRIGGER,
+    EDGE_TRIGGER_MATCH,
+    OPERATOR,
+    SEVERITY,
+    TIMEFRAME,
+    TRANSFORMATION,
+    VARIABLE,
 )
 from octorules_bunny._phases import BUNNY_PHASE_IDS
 
@@ -70,6 +56,13 @@ def _shield_zone_id(scope: Scope) -> int:
         raise ConfigError(f"Invalid shield zone ID {scope.zone_id!r}: must be numeric") from e
 
 
+def _unwrap_data(response: dict | list) -> dict | list:
+    """Unwrap the ``{"data": ...}`` envelope used by Bunny Shield API responses."""
+    if isinstance(response, dict) and "data" in response:
+        return response["data"]
+    return response
+
+
 # ---------------------------------------------------------------------------
 # Rule normalization (API format <-> octorules YAML format)
 # ---------------------------------------------------------------------------
@@ -79,12 +72,17 @@ def _normalize_condition(cond: dict) -> dict:
     vt = cond.get("variableTypes", {})
     if isinstance(vt, dict) and vt:
         var_key = next(iter(vt))
-        var_int = int(var_key) if str(var_key).isdigit() else var_key
-        result["variable"] = _resolve(VARIABLE_TO_STR, var_int)
+        if str(var_key).isdigit():
+            # API returned numeric key — look up in int->str mapping.
+            result["variable"] = VARIABLE.resolve(int(var_key))
+        else:
+            # API returned string key (e.g. "REQUEST_URI") — lowercase it
+            # to match octorules YAML convention.
+            result["variable"] = str(var_key).lower()
         sub = vt[var_key]
         if sub is not None and sub != "":
             result["variable_value"] = str(sub)
-    result["operator"] = _resolve(OPERATOR_TO_STR, cond.get("operatorType", ""))
+    result["operator"] = OPERATOR.resolve(cond.get("operatorType", ""))
     value = cond.get("value", "")
     if value is not None and value != "":
         result["value"] = value
@@ -96,11 +94,12 @@ def _denormalize_condition(cond: dict) -> dict:
     if not cond:
         return {}
     var_str = cond.get("variable", "")
-    var_int = _unresolve(STR_TO_VARIABLE, var_str)
+    # API expects UPPERCASE variable keys (e.g. "REQUEST_URI").
+    var_key = var_str.upper()
     sub = cond.get("variable_value", "")
     result: dict = {
-        "variableTypes": {str(var_int): sub},
-        "operatorType": _unresolve(STR_TO_OPERATOR, cond.get("operator", "")),
+        "variableTypes": {var_key: sub},
+        "operatorType": OPERATOR.unresolve(cond.get("operator", "")),
     }
     value = cond.get("value", "")
     if value is not None and value != "":
@@ -119,19 +118,17 @@ def _normalize_custom_rule(rule: dict) -> dict:
     if primary:
         conditions.append(primary)
     # Chained conditions (AND)
-    for chain in config.get("chainedRuleConditions", []):
+    for chain in config.get("chainedRuleConditions") or []:
         chained = _normalize_condition(chain)
         if chained:
             conditions.append(chained)
 
-    transformations = [
-        _resolve(TRANSFORMATION_TO_STR, t) for t in config.get("transformationTypes", [])
-    ]
+    transformations = [TRANSFORMATION.resolve(t) for t in config.get("transformationTypes", [])]
 
     result: dict = {
         "ref": rule.get("ruleName", ""),
-        "action": _resolve(ACTION_TO_STR, config.get("actionType", "")),
-        "severity": _resolve(SEVERITY_TO_STR, config.get("severityType", "")),
+        "action": ACTION.resolve(config.get("actionType", "")),
+        "severity": SEVERITY.resolve(config.get("severityType", "")),
         "conditions": conditions,
         "_api_id": api_id,
     }
@@ -149,15 +146,13 @@ def _denormalize_custom_rule(rule: dict, shield_zone_id: int) -> dict:
     primary = conditions[0] if conditions else {}
     chained = [_denormalize_condition(c) for c in conditions[1:]]
 
-    transformations = [
-        _unresolve(STR_TO_TRANSFORMATION, t) for t in rule.get("transformations", [])
-    ]
+    transformations = [TRANSFORMATION.unresolve(t) for t in rule.get("transformations", [])]
 
     primary_api = _denormalize_condition(primary) if primary else {}
 
     config: dict = {
-        "actionType": _unresolve(STR_TO_ACTION, rule.get("action", "")),
-        "severityType": _unresolve(STR_TO_SEVERITY, rule.get("severity", "info")),
+        "actionType": ACTION.unresolve(rule.get("action", "")),
+        "severityType": SEVERITY.unresolve(rule.get("severity", "info")),
         **primary_api,
         "transformationTypes": transformations,
     }
@@ -167,11 +162,9 @@ def _denormalize_custom_rule(rule: dict, shield_zone_id: int) -> dict:
     result: dict = {
         "shieldZoneId": shield_zone_id,
         "ruleName": rule.get("ref", ""),
+        "ruleDescription": rule.get("description", ""),
         "ruleConfiguration": config,
     }
-    desc = rule.get("description", "")
-    if desc:
-        result["ruleDescription"] = desc
     return result
 
 
@@ -184,22 +177,26 @@ def _normalize_rate_limit(rule: dict) -> dict:
     primary = _normalize_condition(config)
     if primary:
         conditions.append(primary)
-    for chain in config.get("chainedRuleConditions", []):
+    for chain in config.get("chainedRuleConditions") or []:
         chained = _normalize_condition(chain)
         if chained:
             conditions.append(chained)
 
-    transformations = [
-        _resolve(TRANSFORMATION_TO_STR, t) for t in config.get("transformationTypes", [])
-    ]
+    transformations = [TRANSFORMATION.resolve(t) for t in config.get("transformationTypes", [])]
+
+    # Rate limit fields may be inside ruleConfiguration or at the top level
+    # depending on the API version/endpoint.
+    def _get(key: str, default=None):
+        return config.get(key, rule.get(key, default))
 
     result: dict = {
         "ref": rule.get("ruleName", ""),
-        "action": _resolve(ACTION_TO_STR, config.get("actionType", "")),
-        "request_count": rule.get("requestCount", 0),
-        "timeframe": _resolve(TIMEFRAME_TO_STR, rule.get("timeframe", "")),
-        "block_time": _resolve(BLOCKTIME_TO_STR, rule.get("blockTime", "")),
-        "counter_key_type": _resolve(COUNTER_KEY_TO_STR, rule.get("counterKeyType", "")),
+        "action": ACTION.resolve(config.get("actionType", "")),
+        "severity": SEVERITY.resolve(config.get("severityType", 0)),
+        "request_count": _get("requestCount", 0),
+        "timeframe": TIMEFRAME.resolve(_get("timeframe", "")),
+        "block_time": BLOCKTIME.resolve(_get("blockTime", "")),
+        "counter_key_type": COUNTER_KEY.resolve(_get("counterKeyType", "")),
         "conditions": conditions,
         "_api_id": api_id,
     }
@@ -217,16 +214,19 @@ def _denormalize_rate_limit(rule: dict, shield_zone_id: int) -> dict:
     primary = conditions[0] if conditions else {}
     chained = [_denormalize_condition(c) for c in conditions[1:]]
 
-    transformations = [
-        _unresolve(STR_TO_TRANSFORMATION, t) for t in rule.get("transformations", [])
-    ]
+    transformations = [TRANSFORMATION.unresolve(t) for t in rule.get("transformations", [])]
 
     primary_api = _denormalize_condition(primary) if primary else {}
 
     config: dict = {
-        "actionType": _unresolve(STR_TO_ACTION, rule.get("action", "")),
+        "actionType": ACTION.unresolve(rule.get("action", "")),
+        "severityType": SEVERITY.unresolve(rule.get("severity", "info")),
         **primary_api,
         "transformationTypes": transformations,
+        "requestCount": rule.get("request_count", 0),
+        "timeframe": TIMEFRAME.unresolve(rule.get("timeframe", "")),
+        "blockTime": BLOCKTIME.unresolve(rule.get("block_time", "")),
+        "counterKeyType": COUNTER_KEY.unresolve(rule.get("counter_key_type", "")),
     }
     if chained:
         config["chainedRuleConditions"] = chained
@@ -234,40 +234,61 @@ def _denormalize_rate_limit(rule: dict, shield_zone_id: int) -> dict:
     result: dict = {
         "shieldZoneId": shield_zone_id,
         "ruleName": rule.get("ref", ""),
+        "ruleDescription": rule.get("description", ""),
         "ruleConfiguration": config,
-        "requestCount": rule.get("request_count", 0),
-        "timeframe": _unresolve(STR_TO_TIMEFRAME, rule.get("timeframe", "")),
-        "blockTime": _unresolve(STR_TO_BLOCKTIME, rule.get("block_time", "")),
-        "counterKeyType": _unresolve(STR_TO_COUNTER_KEY, rule.get("counter_key_type", "")),
     }
-    desc = rule.get("description", "")
-    if desc:
-        result["ruleDescription"] = desc
     return result
 
 
 def _normalize_access_list(rule: dict) -> dict:
-    """Convert an API access list to octorules YAML format."""
-    return {
-        "ref": str(rule.get("id", "")),
-        "type": _resolve(ACCESS_LIST_TYPE_TO_STR, rule.get("accessListType", "")),
-        "action": _resolve(ACTION_TO_STR, rule.get("actionType", "")),
-        "enabled": bool(rule.get("enabled", True)),
-        "content": rule.get("content", ""),
-        "_api_id": rule.get("id"),
-    }
+    """Convert an API access list to octorules YAML format.
 
-
-def _denormalize_access_list(rule: dict, shield_zone_id: int) -> dict:
-    """Convert a YAML access list to API format."""
+    Handles both ``AccessListDetails`` (from the list endpoint, has
+    ``listId``/``name``/``isEnabled``) and ``CustomAccessList`` (from
+    the get/create endpoints, has ``id``/``name``/``content``).
+    """
+    # List endpoint uses listId; get/create endpoint uses id.
+    api_id = rule.get("listId", rule.get("id"))
     result: dict = {
-        "shieldZoneId": shield_zone_id,
-        "accessListType": _unresolve(STR_TO_ACCESS_LIST_TYPE, rule.get("type", "")),
-        "actionType": _unresolve(STR_TO_ACTION, rule.get("action", "")),
-        "enabled": rule.get("enabled", True),
-        "content": rule.get("content", ""),
+        "ref": rule.get("name", str(api_id or "")),
+        "type": ACCESS_LIST_TYPE.resolve(rule.get("type", "")),
+        "action": ACCESS_LIST_ACTION.resolve(rule.get("action", "")),
+        "enabled": bool(rule.get("isEnabled", rule.get("enabled", True))),
+        "content": (rule.get("content") or "").rstrip("\n"),
+        "_api_id": api_id,
+        "_config_id": rule.get("configurationId"),
     }
     return result
+
+
+def _denormalize_access_list_create(rule: dict) -> dict:
+    """Build the create payload for a new custom access list.
+
+    Per the Bunny Shield API spec, the create endpoint accepts ``name``,
+    ``type``, and ``content``.  Action and enabled state are configured
+    separately via the configuration endpoint.
+    """
+    return {
+        "name": rule.get("ref", ""),
+        "type": ACCESS_LIST_TYPE.unresolve(rule.get("type", "")),
+        "content": (rule.get("content") or "").rstrip("\n"),
+    }
+
+
+def _denormalize_access_list_update(rule: dict) -> dict:
+    """Build the update payload for an existing custom access list."""
+    return {
+        "name": rule.get("ref", ""),
+        "content": (rule.get("content") or "").rstrip("\n"),
+    }
+
+
+def _denormalize_access_list_config(rule: dict) -> dict:
+    """Build the configuration payload (action + enabled)."""
+    return {
+        "isEnabled": rule.get("enabled", True),
+        "action": ACCESS_LIST_ACTION.unresolve(rule.get("action", "")),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -276,10 +297,8 @@ def _denormalize_access_list(rule: dict, shield_zone_id: int) -> dict:
 def _normalize_edge_trigger(trigger: dict) -> dict:
     """Normalize a single edge rule trigger from API to YAML format."""
     result: dict = {
-        "type": _resolve(EDGE_TRIGGER_TO_STR, trigger.get("Type", "")),
-        "pattern_matching_type": _resolve(
-            EDGE_PATTERN_MATCH_TO_STR, trigger.get("PatternMatchingType", "")
-        ),
+        "type": EDGE_TRIGGER.resolve(trigger.get("Type", "")),
+        "pattern_matching_type": EDGE_PATTERN_MATCH.resolve(trigger.get("PatternMatchingType", "")),
         "pattern_matches": trigger.get("PatternMatches", []),
     }
     p1 = trigger.get("Parameter1", "")
@@ -291,9 +310,9 @@ def _normalize_edge_trigger(trigger: dict) -> dict:
 def _denormalize_edge_trigger(trigger: dict) -> dict:
     """Denormalize a single edge rule trigger from YAML to API format."""
     result: dict = {
-        "Type": _unresolve(STR_TO_EDGE_TRIGGER, trigger.get("type", "")),
-        "PatternMatchingType": _unresolve(
-            STR_TO_EDGE_PATTERN_MATCH, trigger.get("pattern_matching_type", "")
+        "Type": EDGE_TRIGGER.unresolve(trigger.get("type", "")),
+        "PatternMatchingType": EDGE_PATTERN_MATCH.unresolve(
+            trigger.get("pattern_matching_type", "")
         ),
         "PatternMatches": trigger.get("pattern_matches", []),
     }
@@ -311,12 +330,10 @@ def _normalize_edge_rule(rule: dict) -> dict:
         "_api_id": rule.get("Guid", ""),
         "enabled": bool(rule.get("Enabled", True)),
         "description": rule.get("Description", ""),
-        "action_type": _resolve(EDGE_ACTION_TO_STR, rule.get("ActionType", "")),
+        "action_type": EDGE_ACTION.resolve(rule.get("ActionType", "")),
         "action_parameter_1": rule.get("ActionParameter1", ""),
         "action_parameter_2": rule.get("ActionParameter2", ""),
-        "trigger_matching_type": _resolve(
-            EDGE_TRIGGER_MATCH_TO_STR, rule.get("TriggerMatchingType", "")
-        ),
+        "trigger_matching_type": EDGE_TRIGGER_MATCH.resolve(rule.get("TriggerMatchingType", "")),
         "triggers": triggers,
     }
     return result
@@ -326,11 +343,11 @@ def _denormalize_edge_rule(rule: dict) -> dict:
     """Convert a YAML edge rule to API format."""
     triggers = [_denormalize_edge_trigger(t) for t in rule.get("triggers", [])]
     result: dict = {
-        "ActionType": _unresolve(STR_TO_EDGE_ACTION, rule.get("action_type", "")),
+        "ActionType": EDGE_ACTION.unresolve(rule.get("action_type", "")),
         "ActionParameter1": rule.get("action_parameter_1", ""),
         "ActionParameter2": rule.get("action_parameter_2", ""),
-        "TriggerMatchingType": _unresolve(
-            STR_TO_EDGE_TRIGGER_MATCH, rule.get("trigger_matching_type", "all")
+        "TriggerMatchingType": EDGE_TRIGGER_MATCH.unresolve(
+            rule.get("trigger_matching_type", "all")
         ),
         "Triggers": triggers,
         "Description": rule.get("description", rule.get("ref", "")),
@@ -447,15 +464,12 @@ class BunnyShieldProvider:
 
     @property
     def zone_plans(self) -> dict[str, str]:
-        """Zone tiers from the ``plan`` provider kwarg.
+        """Zone tiers detected from the Shield API (``planType``).
 
-        The Bunny Shield API does not expose account tier, so the plan
-        must be set explicitly via provider config::
-
-            providers:
-              bunny:
-                api_key: env/BUNNY_API_KEY
-                plan: advanced
+        Bunny Shield WAF tier is per-zone.  The tier is auto-detected
+        from the ``planType`` field returned by the Shield Zone API
+        during ``resolve_zone_id``.  The ``plan`` provider kwarg serves
+        as a fallback when the API does not return a known plan type.
         """
         return dict(self._zone_plans)
 
@@ -482,7 +496,9 @@ class BunnyShieldProvider:
 
         pz = matches[0]
         pull_zone_id = pz["Id"]
-        shield = self._client.get_shield_zone_by_pullzone(pull_zone_id)
+        shield_raw = self._client.get_shield_zone_by_pullzone(pull_zone_id)
+        # Shield API wraps responses in {"data": {...}} — unwrap if present.
+        shield = _unwrap_data(shield_raw)
         shield_zone_id = str(shield.get("shieldZoneId", shield.get("id", "")))
         if not shield_zone_id:
             raise ConfigError(
@@ -490,12 +506,19 @@ class BunnyShieldProvider:
                 " (is Bunny Shield enabled for this zone?)"
             )
 
+        # Auto-detect zone tier from API response.
+        _PLAN_TYPE_MAP = {0: "basic", 1: "advanced", 2: "business", 3: "enterprise"}
+        api_tier = _PLAN_TYPE_MAP.get(shield.get("planType"))
+
         with self._lock:
             self._zone_meta[shield_zone_id] = {
                 "pull_zone_id": pull_zone_id,
                 "name": zone_name,
             }
-            if self._plan:
+            # API-detected tier takes precedence; fall back to provider kwarg.
+            if api_tier:
+                self._zone_plans[zone_name] = api_tier
+            elif self._plan:
                 self._zone_plans[zone_name] = self._plan
         log.debug(
             "Resolved %s -> shield_zone_id=%s (pull_zone_id=%d)",
@@ -544,13 +567,48 @@ class BunnyShieldProvider:
             )
             return result
         if provider_id == "bunny_waf_access_list":
-            raw = self._client.list_access_lists(sz)
-            result = [_normalize_access_list(r) for r in raw]
+            summaries = self._client.list_access_lists(sz)
+            # The list endpoint returns metadata but not content — fetch
+            # each list individually to get the full content.
+            fetchable = [s for s in summaries if s.get("listId", s.get("id")) is not None]
+            result = self._fetch_access_list_details(sz, fetchable)
             log.debug(
                 "get_phase_rules %s/%s: %d rules", self._fmt_scope(scope), provider_id, len(result)
             )
             return result
         return []
+
+    def _fetch_access_list_details(self, sz: int, summaries: list[dict]) -> list[dict]:
+        """Fetch full content for each access list summary.
+
+        When ``max_workers > 1``, detail fetches run concurrently via a
+        thread pool.  Individual failures fall back to summary-only data
+        so the overall fetch never fails partially.
+        """
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        def _fetch_one(summary: dict) -> dict:
+            list_id = summary.get("listId", summary.get("id"))
+            try:
+                detail = self._client.get_access_list(sz, list_id)
+                full = _unwrap_data(detail)
+                merged = {**summary, **full}
+                return _normalize_access_list(merged)
+            except (BunnyAPIError, BunnyAuthError, httpx.HTTPStatusError) as exc:
+                log.warning("Failed to fetch access list %s detail: %s", list_id, exc)
+                return _normalize_access_list(summary)
+
+        if self._max_workers <= 1 or len(summaries) <= 1:
+            return [_fetch_one(s) for s in summaries]
+
+        # Parallel path: maintain insertion order via index mapping.
+        result: list[dict | None] = [None] * len(summaries)
+        with ThreadPoolExecutor(max_workers=self._max_workers) as executor:
+            future_to_idx = {executor.submit(_fetch_one, s): i for i, s in enumerate(summaries)}
+            for future in as_completed(future_to_idx):
+                idx = future_to_idx[future]
+                result[idx] = future.result()
+        return [r for r in result if r is not None]
 
     @_wrap_provider_errors
     def put_phase_rules(self, scope: Scope, provider_id: str, rules: list[dict]) -> int:
@@ -596,6 +654,9 @@ class BunnyShieldProvider:
                     api_id = old_by_ref[ref].get("_api_id")
                     if api_id is not None:
                         payload = self._denormalize(new_rule, provider_id, sz)
+                        # Carry _config_id from old rule (needed for access list config updates)
+                        if "_config_id" in old_by_ref[ref]:
+                            payload["_config_id"] = old_by_ref[ref]["_config_id"]
                         self._update_rule(provider_id, sz, api_id, payload)
                         patched.append(ref)
 
@@ -674,7 +735,9 @@ class BunnyShieldProvider:
         if provider_id == "bunny_waf_rate_limit":
             return _denormalize_rate_limit(rule, shield_zone_id)
         if provider_id == "bunny_waf_access_list":
-            return _denormalize_access_list(rule, shield_zone_id)
+            # Access list denormalize is handled specially in _create_rule/_update_rule
+            # because the API uses separate endpoints for content and config.
+            return rule  # pass through — create/update handles denormalization
         if provider_id == "bunny_edge_rule":
             return _denormalize_edge_rule(rule)
         raise ProviderError(f"Unknown provider_id: {provider_id!r}")
@@ -685,7 +748,30 @@ class BunnyShieldProvider:
         elif provider_id == "bunny_waf_rate_limit":
             self._client.create_rate_limit(payload)
         elif provider_id == "bunny_waf_access_list":
-            self._client.create_access_list(sz, payload)
+            # Two-step: create the list, then configure action/enabled.
+            create_payload = _denormalize_access_list_create(payload)
+            resp = _unwrap_data(self._client.create_access_list(sz, create_payload))
+            list_id = resp.get("id")
+            if list_id:
+                # Fetch the list details to get the configurationId.
+                summaries = self._client.list_access_lists(sz)
+                config_id = None
+                for s in summaries:
+                    if s.get("listId") == list_id:
+                        config_id = s.get("configurationId")
+                        break
+                if config_id:
+                    try:
+                        config_payload = _denormalize_access_list_config(payload)
+                        self._client.update_access_list_config(sz, config_id, config_payload)
+                    except (BunnyAPIError, BunnyAuthError) as exc:
+                        log.warning(
+                            "Access list %s created but config update failed "
+                            "(partial state — action/enabled may be wrong): %s",
+                            list_id,
+                            exc,
+                        )
+                        raise
         elif provider_id == "bunny_edge_rule":
             self._client.create_or_update_edge_rule(sz, payload)
         else:
@@ -697,7 +783,14 @@ class BunnyShieldProvider:
         elif provider_id == "bunny_waf_rate_limit":
             self._client.update_rate_limit(api_id, payload)
         elif provider_id == "bunny_waf_access_list":
-            self._client.update_access_list(sz, api_id, payload)
+            # Update content, then update config if needed.
+            update_payload = _denormalize_access_list_update(payload)
+            self._client.update_access_list(sz, api_id, update_payload)
+            # Update action/enabled via the configuration endpoint.
+            config_id = payload.get("_config_id")
+            if config_id:
+                config_payload = _denormalize_access_list_config(payload)
+                self._client.update_access_list_config(sz, config_id, config_payload)
         elif provider_id == "bunny_edge_rule":
             self._client.create_or_update_edge_rule(sz, payload)
         else:
@@ -749,19 +842,39 @@ class BunnyShieldProvider:
         self._client.update_pull_zone(self._pull_zone_id(scope), payload)
         log.debug("PUT pullzone_security %s", self._fmt_scope(scope))
 
+    # -- Curated threat lists (managed access lists) -----------------------
+
+    @_wrap_provider_errors
+    def get_managed_access_lists(self, scope: Scope) -> list[dict]:
+        """Fetch the managed (curated) access lists for a shield zone."""
+        sz = _shield_zone_id(scope)
+        # list_access_lists returns customLists only — we need the raw
+        # response to get managedLists from the full endpoint.
+        raw = self._client._request("GET", f"/shield/shield-zone/{sz}/access-lists")
+        if isinstance(raw, dict):
+            return raw.get("managedLists", [])
+        return []
+
+    @_wrap_provider_errors
+    def update_curated_list_config(self, scope: Scope, config_id: int, payload: dict) -> dict:
+        """Update a curated threat list's action and enabled state."""
+        sz = _shield_zone_id(scope)
+        log.debug("PUT curated_list config_id=%d %s", config_id, self._fmt_scope(scope))
+        return self._client.update_access_list_config(sz, config_id, payload)
+
     # -- Shield config methods (used by extension hooks) --------------------
 
     @_wrap_provider_errors
     def get_shield_zone_config(self, scope: Scope) -> dict:
         """Fetch the Shield Zone configuration."""
         log.debug("GET shield_zone_config %s", self._fmt_scope(scope))
-        return self._client.get_shield_zone(_shield_zone_id(scope))
+        return _unwrap_data(self._client.get_shield_zone(_shield_zone_id(scope)))
 
     @_wrap_provider_errors
     def get_bot_detection_config(self, scope: Scope) -> dict:
         """Fetch bot detection configuration."""
         log.debug("GET bot_detection %s", self._fmt_scope(scope))
-        return self._client.get_bot_detection(_shield_zone_id(scope))
+        return _unwrap_data(self._client.get_bot_detection(_shield_zone_id(scope)))
 
     @_wrap_provider_errors
     def update_bot_detection_config(self, scope: Scope, settings: dict) -> dict:
@@ -770,11 +883,30 @@ class BunnyShieldProvider:
         return self._client.update_bot_detection(_shield_zone_id(scope), settings)
 
     @_wrap_provider_errors
+    def get_upload_scanning_config(self, scope: Scope) -> dict:
+        """Fetch upload scanning configuration."""
+        log.debug("GET upload_scanning %s", self._fmt_scope(scope))
+        return _unwrap_data(self._client.get_upload_scanning(_shield_zone_id(scope)))
+
+    @_wrap_provider_errors
+    def update_upload_scanning_config(self, scope: Scope, settings: dict) -> dict:
+        """Update upload scanning configuration."""
+        log.debug("PUT upload_scanning %s", self._fmt_scope(scope))
+        return self._client.update_upload_scanning(_shield_zone_id(scope), settings)
+
+    @_wrap_provider_errors
     def update_shield_zone_config(self, scope: Scope, settings: dict) -> dict:
-        """Update Shield Zone configuration (DDoS, managed rules, etc.)."""
-        settings["shieldZoneId"] = _shield_zone_id(scope)
+        """Update Shield Zone configuration (DDoS, managed rules, etc.).
+
+        The Bunny Shield API expects ``{"shieldZoneId": N, "shieldZone": {fields}}``
+        for PATCH — fields are nested under the ``shieldZone`` key.
+        """
+        payload = {
+            "shieldZoneId": _shield_zone_id(scope),
+            "shieldZone": settings,
+        }
         log.debug("PUT shield_zone_config %s", self._fmt_scope(scope))
-        return self._client.update_shield_zone(settings)
+        return self._client.update_shield_zone(payload)
 
     # -- Custom rulesets (not supported) ------------------------------------
 

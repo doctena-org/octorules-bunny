@@ -94,23 +94,25 @@ def sample_rate_limits():
 
 @pytest.fixture
 def sample_access_lists():
-    """Sample access lists API response."""
+    """Sample access lists API response (AccessListDetails format from list endpoint)."""
     return [
         {
-            "id": 301,
-            "shieldZoneId": 999,
-            "accessListType": 3,
-            "actionType": 1,
-            "enabled": True,
-            "content": "CN\nRU",
+            "listId": 301,
+            "configurationId": 42,
+            "name": "block countries",
+            "type": 3,
+            "action": 2,  # AccessListAction: 2=Block
+            "isEnabled": True,
+            "entryCount": 2,
         },
         {
-            "id": 302,
-            "shieldZoneId": 999,
-            "accessListType": 0,
-            "actionType": 4,
-            "enabled": True,
-            "content": "10.0.0.1\n192.168.1.1",
+            "listId": 302,
+            "configurationId": 43,
+            "name": "allow ips",
+            "type": 0,
+            "action": 1,  # AccessListAction: 1=Allow
+            "isEnabled": True,
+            "entryCount": 2,
         },
     ]
 

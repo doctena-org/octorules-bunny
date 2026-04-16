@@ -39,8 +39,8 @@ class TestNormalizePullZoneSecurity:
             "ZoneSecurityIncludeHashRemoteIP": True,
             "BlockNoneReferrer": True,
             "EnableAccessControlOriginHeader": True,
-            "AccessControlOriginHeaderExtensions": ".jpg .png",
-            "LoggingIPAnonymization": True,
+            "AccessControlOriginHeaderExtensions": [".jpg", ".png"],
+            "LogAnonymizationType": 1,
         }
         result = normalize_pullzone_security(pz)
         assert result["blocked_ips"] == "1.2.3.4\n5.6.7.8"
@@ -53,23 +53,23 @@ class TestNormalizePullZoneSecurity:
         assert result["token_auth_include_ip"] is True
         assert result["block_none_referrer"] is True
         assert result["cors_enabled"] is True
-        assert result["cors_extensions"] == ".jpg .png"
-        assert result["logging_ip_anonymization"] is True
+        assert result["cors_extensions"] == [".jpg", ".png"]
+        assert result["logging_ip_anonymization_type"] == 1
 
     def test_empty_pull_zone(self):
         result = normalize_pullzone_security({})
-        assert result["blocked_ips"] == ""
-        assert result["blocked_countries"] == ""
-        assert result["blocked_referrers"] == ""
-        assert result["allowed_referrers"] == ""
+        assert result["blocked_ips"] == []
+        assert result["blocked_countries"] == []
+        assert result["blocked_referrers"] == []
+        assert result["allowed_referrers"] == []
         assert result["block_post_requests"] is False
         assert result["block_root_path_access"] is False
         assert result["enable_token_authentication"] is False
         assert result["token_auth_include_ip"] is False
         assert result["block_none_referrer"] is False
         assert result["cors_enabled"] is False
-        assert result["cors_extensions"] == ""
-        assert result["logging_ip_anonymization"] is False
+        assert result["cors_extensions"] == []
+        assert result["logging_ip_anonymization_type"] == 0
 
     def test_partial_pull_zone(self):
         pz = {"BlockedIps": "10.0.0.1", "EnableTokenAuthentication": True}
@@ -77,7 +77,7 @@ class TestNormalizePullZoneSecurity:
         assert result["blocked_ips"] == "10.0.0.1"
         assert result["enable_token_authentication"] is True
         # Defaults for missing fields
-        assert result["blocked_countries"] == ""
+        assert result["blocked_countries"] == []
         assert result["block_post_requests"] is False
 
 
@@ -95,7 +95,7 @@ class TestDenormalizePullZoneSecurity:
             "block_none_referrer": True,
             "cors_enabled": True,
             "cors_extensions": ".jpg .png",
-            "logging_ip_anonymization": True,
+            "logging_ip_anonymization_type": 1,
         }
         result = denormalize_pullzone_security(config)
         assert result["BlockedIps"] == "1.2.3.4\n5.6.7.8"
@@ -109,7 +109,7 @@ class TestDenormalizePullZoneSecurity:
         assert result["BlockNoneReferrer"] is True
         assert result["EnableAccessControlOriginHeader"] is True
         assert result["AccessControlOriginHeaderExtensions"] == ".jpg .png"
-        assert result["LoggingIPAnonymization"] is True
+        assert result["LogAnonymizationType"] == 1
 
     def test_partial_config(self):
         """Only specified keys appear in the API payload."""
@@ -136,7 +136,7 @@ class TestDenormalizePullZoneSecurity:
             "BlockNoneReferrer": False,
             "EnableAccessControlOriginHeader": True,
             "AccessControlOriginHeaderExtensions": ".css",
-            "LoggingIPAnonymization": False,
+            "LogAnonymizationType": 0,
         }
         normalized = normalize_pullzone_security(pz)
         denormalized = denormalize_pullzone_security(normalized)
@@ -171,15 +171,15 @@ class TestDiffPullZoneSecurity:
         assert plan.changes[0].field == "cors_enabled"
 
     def test_multiple_changes(self):
-        current = {"blocked_ips": "", "cors_enabled": False, "block_post_requests": False}
-        desired = {"blocked_ips": "10.0.0.1", "cors_enabled": True, "block_post_requests": False}
+        current = {"blocked_ips": [], "cors_enabled": False, "block_post_requests": False}
+        desired = {"blocked_ips": ["10.0.0.1"], "cors_enabled": True, "block_post_requests": False}
         plan = diff_pullzone_security(current, desired)
         assert plan.has_changes
         assert len(plan.changes) == 2  # block_post_requests unchanged
 
     def test_new_field(self):
         """Desired has a field not present in current."""
-        plan = diff_pullzone_security({}, {"blocked_ips": "10.0.0.1"})
+        plan = diff_pullzone_security({}, {"blocked_ips": ["10.0.0.1"]})
         assert plan.has_changes
         assert plan.changes[0].current is None
 
@@ -229,8 +229,8 @@ class TestFinalizeHook:
         zp = MagicMock()
         zp.extension_plans = {}
 
-        current = {"blocked_ips": "", "cors_enabled": False}
-        desired = {"blocked_ips": "10.0.0.1", "cors_enabled": True}
+        current = {"blocked_ips": [], "cors_enabled": False}
+        desired = {"blocked_ips": ["10.0.0.1"], "cors_enabled": True}
         ctx = (current, desired)
 
         _finalize_pullzone_security(zp, {}, _scope(), MagicMock(), ctx)
@@ -242,7 +242,7 @@ class TestFinalizeHook:
         zp = MagicMock()
         zp.extension_plans = {}
 
-        config = {"blocked_ips": "10.0.0.1", "cors_enabled": True}
+        config = {"blocked_ips": ["10.0.0.1"], "cors_enabled": True}
         ctx = (config, config)
 
         _finalize_pullzone_security(zp, {}, _scope(), MagicMock(), ctx)
@@ -264,8 +264,8 @@ class TestApplyHook:
         zp = MagicMock()
         plan = PullZoneSecurityPlan(
             changes=[
-                PullZoneSecurityChange("blocked_ips", "", "10.0.0.1"),
-                PullZoneSecurityChange("cors_enabled", False, True),
+                PullZoneSecurityChange("pullzone_security", "blocked_ips", [], ["10.0.0.1"]),
+                PullZoneSecurityChange("pullzone_security", "cors_enabled", False, True),
             ]
         )
         synced, error = _apply_pullzone_security(zp, [plan], _scope(), provider)
@@ -274,7 +274,7 @@ class TestApplyHook:
         provider.update_pullzone_security.assert_called_once()
         call_args = provider.update_pullzone_security.call_args
         settings = call_args[0][1]
-        assert settings["blocked_ips"] == "10.0.0.1"
+        assert settings["blocked_ips"] == ["10.0.0.1"]
         assert settings["cors_enabled"] is True
 
     def test_no_changes_skipped(self):
@@ -282,7 +282,7 @@ class TestApplyHook:
         zp = MagicMock()
         plan = PullZoneSecurityPlan(
             changes=[
-                PullZoneSecurityChange("blocked_ips", "1.2.3.4", "1.2.3.4"),
+                PullZoneSecurityChange("pullzone_security", "blocked_ips", "1.2.3.4", "1.2.3.4"),
             ]
         )
         synced, _error = _apply_pullzone_security(zp, [plan], _scope(), provider)
@@ -300,9 +300,9 @@ class TestApplyHook:
         zp = MagicMock()
         plan = PullZoneSecurityPlan(
             changes=[
-                PullZoneSecurityChange("blocked_ips", "", "10.0.0.1"),
-                PullZoneSecurityChange("cors_enabled", False, True),
-                PullZoneSecurityChange("block_post_requests", False, True),
+                PullZoneSecurityChange("pullzone_security", "blocked_ips", [], ["10.0.0.1"]),
+                PullZoneSecurityChange("pullzone_security", "cors_enabled", False, True),
+                PullZoneSecurityChange("pullzone_security", "block_post_requests", False, True),
             ]
         )
         _synced, error = _apply_pullzone_security(zp, [plan], _scope(), provider)
@@ -320,40 +320,40 @@ class TestPullZoneSecurityFormatter:
     # -- format_text --------------------------------------------------------
 
     def test_format_text_with_changes(self):
-        fmt = PullZoneSecurityFormatter()
+        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
         plan = PullZoneSecurityPlan(
             changes=[
-                PullZoneSecurityChange("blocked_ips", "", "10.0.0.1"),
-                PullZoneSecurityChange("cors_enabled", False, True),
+                PullZoneSecurityChange("pullzone_security", "blocked_ips", [], ["10.0.0.1"]),
+                PullZoneSecurityChange("pullzone_security", "cors_enabled", False, True),
             ]
         )
         lines = fmt.format_text([plan], use_color=False)
         assert len(lines) == 2
         assert "pullzone_security.blocked_ips" in lines[0]
-        assert "''" in lines[0]
+        assert "[]" in lines[0]
         assert "'10.0.0.1'" in lines[0]
         assert lines[0].startswith("  ~ ")
         assert "pullzone_security.cors_enabled" in lines[1]
 
     def test_format_text_skips_no_change(self):
-        fmt = PullZoneSecurityFormatter()
+        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
         plan = PullZoneSecurityPlan(
             changes=[
-                PullZoneSecurityChange("blocked_ips", "x", "x"),
+                PullZoneSecurityChange("pullzone_security", "blocked_ips", "x", "x"),
             ]
         )
         assert fmt.format_text([plan], use_color=False) == []
 
     def test_format_text_empty_plans(self):
-        fmt = PullZoneSecurityFormatter()
+        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
         assert fmt.format_text([], use_color=False) == []
 
     def test_format_text_with_color(self):
         """With color enabled, output wraps in ANSI codes."""
-        fmt = PullZoneSecurityFormatter()
+        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
         plan = PullZoneSecurityPlan(
             changes=[
-                PullZoneSecurityChange("cors_enabled", False, True),
+                PullZoneSecurityChange("pullzone_security", "cors_enabled", False, True),
             ]
         )
         lines = fmt.format_text([plan], use_color=True)
@@ -364,11 +364,11 @@ class TestPullZoneSecurityFormatter:
     # -- format_json --------------------------------------------------------
 
     def test_format_json_with_changes(self):
-        fmt = PullZoneSecurityFormatter()
+        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
         plan = PullZoneSecurityPlan(
             changes=[
-                PullZoneSecurityChange("blocked_ips", "", "10.0.0.1"),
-                PullZoneSecurityChange("cors_enabled", False, True),
+                PullZoneSecurityChange("pullzone_security", "blocked_ips", [], ["10.0.0.1"]),
+                PullZoneSecurityChange("pullzone_security", "cors_enabled", False, True),
             ]
         )
         result = fmt.format_json([plan])
@@ -377,42 +377,44 @@ class TestPullZoneSecurityFormatter:
         changes = result[0]["changes"]
         assert len(changes) == 2
         assert changes[0]["field"] == "blocked_ips"
-        assert changes[0]["current"] == ""
-        assert changes[0]["desired"] == "10.0.0.1"
+        assert changes[0]["current"] == []
+        assert changes[0]["desired"] == ["10.0.0.1"]
         assert changes[1]["field"] == "cors_enabled"
         assert changes[1]["current"] is False
         assert changes[1]["desired"] is True
 
     def test_format_json_skips_no_change(self):
-        fmt = PullZoneSecurityFormatter()
+        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
         plan = PullZoneSecurityPlan(
             changes=[
-                PullZoneSecurityChange("blocked_ips", "x", "x"),
+                PullZoneSecurityChange("pullzone_security", "blocked_ips", "x", "x"),
             ]
         )
         assert fmt.format_json([plan]) == []
 
     def test_format_json_empty_plans(self):
-        fmt = PullZoneSecurityFormatter()
+        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
         assert fmt.format_json([]) == []
 
     def test_format_json_multiple_plans(self):
-        fmt = PullZoneSecurityFormatter()
+        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
         plan1 = PullZoneSecurityPlan(
-            changes=[PullZoneSecurityChange("blocked_ips", "", "10.0.0.1")]
+            changes=[PullZoneSecurityChange("pullzone_security", "blocked_ips", [], ["10.0.0.1"])]
         )
-        plan2 = PullZoneSecurityPlan(changes=[PullZoneSecurityChange("cors_enabled", False, True)])
+        plan2 = PullZoneSecurityPlan(
+            changes=[PullZoneSecurityChange("pullzone_security", "cors_enabled", False, True)]
+        )
         result = fmt.format_json([plan1, plan2])
         assert len(result) == 2
 
     # -- format_markdown ----------------------------------------------------
 
     def test_format_markdown_with_changes(self):
-        fmt = PullZoneSecurityFormatter()
+        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
         plan = PullZoneSecurityPlan(
             changes=[
-                PullZoneSecurityChange("blocked_ips", "", "10.0.0.1"),
-                PullZoneSecurityChange("cors_enabled", False, True),
+                PullZoneSecurityChange("pullzone_security", "blocked_ips", [], ["10.0.0.1"]),
+                PullZoneSecurityChange("pullzone_security", "cors_enabled", False, True),
             ]
         )
         lines = fmt.format_markdown([plan], pending_diffs=[])
@@ -424,24 +426,24 @@ class TestPullZoneSecurityFormatter:
         assert "pullzone_security.cors_enabled" in lines[1]
 
     def test_format_markdown_skips_no_change(self):
-        fmt = PullZoneSecurityFormatter()
+        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
         plan = PullZoneSecurityPlan(
             changes=[
-                PullZoneSecurityChange("blocked_ips", "x", "x"),
+                PullZoneSecurityChange("pullzone_security", "blocked_ips", "x", "x"),
             ]
         )
         assert fmt.format_markdown([plan], pending_diffs=[]) == []
 
     def test_format_markdown_empty_plans(self):
-        fmt = PullZoneSecurityFormatter()
+        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
         assert fmt.format_markdown([], pending_diffs=[]) == []
 
     def test_format_markdown_escapes_pipes(self):
         """Pipe characters in values are escaped for markdown tables."""
-        fmt = PullZoneSecurityFormatter()
+        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
         plan = PullZoneSecurityPlan(
             changes=[
-                PullZoneSecurityChange("blocked_ips", "a|b", "c|d"),
+                PullZoneSecurityChange("pullzone_security", "blocked_ips", "a|b", "c|d"),
             ]
         )
         lines = fmt.format_markdown([plan], pending_diffs=[])
@@ -451,11 +453,11 @@ class TestPullZoneSecurityFormatter:
     # -- format_html --------------------------------------------------------
 
     def test_format_html_with_changes(self):
-        fmt = PullZoneSecurityFormatter()
+        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
         plan = PullZoneSecurityPlan(
             changes=[
-                PullZoneSecurityChange("blocked_ips", "", "10.0.0.1"),
-                PullZoneSecurityChange("cors_enabled", False, True),
+                PullZoneSecurityChange("pullzone_security", "blocked_ips", [], ["10.0.0.1"]),
+                PullZoneSecurityChange("pullzone_security", "cors_enabled", False, True),
             ]
         )
         lines: list[str] = []
@@ -472,10 +474,10 @@ class TestPullZoneSecurityFormatter:
         assert "Updates=2" in html
 
     def test_format_html_skips_no_change(self):
-        fmt = PullZoneSecurityFormatter()
+        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
         plan = PullZoneSecurityPlan(
             changes=[
-                PullZoneSecurityChange("blocked_ips", "x", "x"),
+                PullZoneSecurityChange("pullzone_security", "blocked_ips", "x", "x"),
             ]
         )
         lines: list[str] = []
@@ -484,7 +486,7 @@ class TestPullZoneSecurityFormatter:
         assert lines == []
 
     def test_format_html_empty_plans(self):
-        fmt = PullZoneSecurityFormatter()
+        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
         lines: list[str] = []
         result = fmt.format_html([], lines)
         assert result == (0, 0, 0, 0)
@@ -492,10 +494,10 @@ class TestPullZoneSecurityFormatter:
 
     def test_format_html_escapes_special_chars(self):
         """HTML special characters in values are escaped."""
-        fmt = PullZoneSecurityFormatter()
+        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
         plan = PullZoneSecurityPlan(
             changes=[
-                PullZoneSecurityChange("blocked_ips", "<script>", "10.0.0.1"),
+                PullZoneSecurityChange("pullzone_security", "blocked_ips", "<script>", "10.0.0.1"),
             ]
         )
         lines: list[str] = []
@@ -507,11 +509,11 @@ class TestPullZoneSecurityFormatter:
     # -- format_report ------------------------------------------------------
 
     def test_format_report_with_drift(self):
-        fmt = PullZoneSecurityFormatter()
+        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
         plan = PullZoneSecurityPlan(
             changes=[
-                PullZoneSecurityChange("blocked_ips", "", "10.0.0.1"),
-                PullZoneSecurityChange("cors_enabled", False, True),
+                PullZoneSecurityChange("pullzone_security", "blocked_ips", [], ["10.0.0.1"]),
+                PullZoneSecurityChange("pullzone_security", "cors_enabled", False, True),
             ]
         )
         phases_data: list[dict] = []
@@ -528,10 +530,10 @@ class TestPullZoneSecurityFormatter:
 
     def test_format_report_preserves_incoming_drift(self):
         """zone_has_drift=True is preserved even when extension has no drift."""
-        fmt = PullZoneSecurityFormatter()
+        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
         plan = PullZoneSecurityPlan(
             changes=[
-                PullZoneSecurityChange("blocked_ips", "x", "x"),
+                PullZoneSecurityChange("pullzone_security", "blocked_ips", "x", "x"),
             ]
         )
         phases_data: list[dict] = []
@@ -540,7 +542,7 @@ class TestPullZoneSecurityFormatter:
         assert phases_data == []
 
     def test_format_report_no_drift(self):
-        fmt = PullZoneSecurityFormatter()
+        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
         phases_data: list[dict] = []
         result = fmt.format_report([], zone_has_drift=False, phases_data=phases_data)
         assert result is False
@@ -548,7 +550,7 @@ class TestPullZoneSecurityFormatter:
 
     def test_format_report_empty_plans_passes_through_drift(self):
         """With empty plans, returns the incoming zone_has_drift unchanged."""
-        fmt = PullZoneSecurityFormatter()
+        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
         phases_data: list[dict] = []
         result = fmt.format_report([], zone_has_drift=True, phases_data=phases_data)
         assert result is True
@@ -562,12 +564,12 @@ class TestValidateExtension:
     def test_valid_config(self):
         desired = {
             "bunny_pullzone_security": {
-                "blocked_ips": "1.2.3.4\n5.6.7.8",
-                "blocked_countries": "CN,RU",
+                "blocked_ips": ["1.2.3.4", "5.6.7.8"],
+                "blocked_countries": ["CN", "RU"],
                 "block_post_requests": True,
                 "cors_enabled": True,
-                "cors_extensions": ".jpg .png",
-                "logging_ip_anonymization": False,
+                "cors_extensions": [".jpg", ".png"],
+                "logging_ip_anonymization_type": 0,
             }
         }
         errors: list[str] = []
@@ -596,7 +598,7 @@ class TestValidateExtension:
         errors: list[str] = []
         _validate_pullzone_security(desired, "zone", errors, [])
         assert len(errors) == 1
-        assert "must be a string" in errors[0]
+        assert "must be a list" in errors[0]
         assert "blocked_ips" in errors[0]
 
     def test_unknown_field(self):
@@ -642,7 +644,6 @@ class TestValidateExtension:
             "token_auth_include_ip",
             "block_none_referrer",
             "cors_enabled",
-            "logging_ip_anonymization",
         ]
         for field_name in bool_fields:
             errors: list[str] = []
@@ -650,6 +651,14 @@ class TestValidateExtension:
             _validate_pullzone_security(desired, "zone", errors, [])
             assert len(errors) == 1, f"Expected validation error for {field_name}"
             assert "must be a bool" in errors[0]
+
+    def test_int_fields_validated(self):
+        """Int fields reject non-int values."""
+        errors: list[str] = []
+        desired = {"bunny_pullzone_security": {"logging_ip_anonymization_type": "high"}}
+        _validate_pullzone_security(desired, "zone", errors, [])
+        assert len(errors) == 1
+        assert "must be an int" in errors[0]
 
     def test_all_string_fields_validated(self):
         """Every string field rejects non-string values."""
@@ -665,7 +674,7 @@ class TestValidateExtension:
             desired = {"bunny_pullzone_security": {field_name: 12345}}
             _validate_pullzone_security(desired, "zone", errors, [])
             assert len(errors) == 1, f"Expected validation error for {field_name}"
-            assert "must be a string" in errors[0]
+            assert "must be a list" in errors[0]
 
 
 # ---------------------------------------------------------------------------
@@ -676,15 +685,15 @@ class TestDumpExtension:
         provider = MagicMock()
         provider.get_pullzone_security.return_value = {
             "blocked_ips": "1.2.3.4",
-            "blocked_countries": "CN",
+            "blocked_countries": ["CN"],
             "blocked_referrers": "",
             "allowed_referrers": "",
             "block_post_requests": True,
             "block_root_path_access": False,
             "enable_token_authentication": False,
             "cors_enabled": True,
-            "cors_extensions": ".jpg",
-            "logging_ip_anonymization": False,
+            "cors_extensions": [".jpg"],
+            "logging_ip_anonymization_type": 0,
         }
         result = _dump_pullzone_security(_scope(), provider, None)
         assert "bunny_pullzone_security" in result
@@ -726,7 +735,7 @@ class TestProviderMethods:
             "BlockNoneReferrer": True,
             "EnableAccessControlOriginHeader": False,
             "AccessControlOriginHeaderExtensions": "",
-            "LoggingIPAnonymization": False,
+            "LogAnonymizationType": 0,
         }
         provider = BunnyShieldProvider(client=client)
         # Simulate zone resolution
@@ -749,10 +758,12 @@ class TestProviderMethods:
         provider._zone_meta["42"] = {"pull_zone_id": 100, "name": "test"}
         scope = Scope(zone_id="42", label="test")
 
-        provider.update_pullzone_security(scope, {"blocked_ips": "10.0.0.1", "cors_enabled": True})
+        provider.update_pullzone_security(
+            scope, {"blocked_ips": ["10.0.0.1"], "cors_enabled": True}
+        )
         client.update_pull_zone.assert_called_once_with(
             100,
-            {"BlockedIps": "10.0.0.1", "EnableAccessControlOriginHeader": True},
+            {"BlockedIps": ["10.0.0.1"], "EnableAccessControlOriginHeader": True},
         )
 
     def test_pull_zone_id_raises_without_metadata(self):

@@ -10,14 +10,10 @@ from octorules.linter.engine import LintResult
 from octorules.provider.base import Scope
 
 from octorules_bunny._enums import (
-    EDGE_ACTION_TO_STR,
-    EDGE_PATTERN_MATCH_TO_STR,
-    EDGE_TRIGGER_MATCH_TO_STR,
-    EDGE_TRIGGER_TO_STR,
-    STR_TO_EDGE_ACTION,
-    STR_TO_EDGE_PATTERN_MATCH,
-    STR_TO_EDGE_TRIGGER,
-    STR_TO_EDGE_TRIGGER_MATCH,
+    EDGE_ACTION,
+    EDGE_PATTERN_MATCH,
+    EDGE_TRIGGER,
+    EDGE_TRIGGER_MATCH,
 )
 from octorules_bunny.provider import (
     BunnyShieldProvider,
@@ -64,36 +60,38 @@ def _ids(results: list[LintResult]) -> list[str]:
 # ---------------------------------------------------------------------------
 class TestEdgeEnumRoundTrip:
     def test_action_round_trip(self):
-        for int_val, str_val in EDGE_ACTION_TO_STR.items():
-            assert STR_TO_EDGE_ACTION[str_val] == int_val
+        for int_val, str_val in EDGE_ACTION.items():
+            assert EDGE_ACTION.unresolve(str_val) == int_val
 
     def test_trigger_round_trip(self):
-        for int_val, str_val in EDGE_TRIGGER_TO_STR.items():
-            assert STR_TO_EDGE_TRIGGER[str_val] == int_val
+        for int_val, str_val in EDGE_TRIGGER.items():
+            assert EDGE_TRIGGER.unresolve(str_val) == int_val
 
     def test_pattern_match_round_trip(self):
-        for int_val, str_val in EDGE_PATTERN_MATCH_TO_STR.items():
-            assert STR_TO_EDGE_PATTERN_MATCH[str_val] == int_val
+        for int_val, str_val in EDGE_PATTERN_MATCH.items():
+            assert EDGE_PATTERN_MATCH.unresolve(str_val) == int_val
 
     def test_trigger_match_round_trip(self):
-        for int_val, str_val in EDGE_TRIGGER_MATCH_TO_STR.items():
-            assert STR_TO_EDGE_TRIGGER_MATCH[str_val] == int_val
+        for int_val, str_val in EDGE_TRIGGER_MATCH.items():
+            assert EDGE_TRIGGER_MATCH.unresolve(str_val) == int_val
 
     def test_action_count(self):
-        assert len(EDGE_ACTION_TO_STR) == 35
+        assert len(EDGE_ACTION) == 35
 
     def test_trigger_count(self):
-        assert len(EDGE_TRIGGER_TO_STR) == 14
+        assert len(EDGE_TRIGGER) == 14
 
     def test_pattern_match_count(self):
-        assert len(EDGE_PATTERN_MATCH_TO_STR) == 3
+        assert len(EDGE_PATTERN_MATCH) == 3
 
     def test_trigger_match_count(self):
-        assert len(EDGE_TRIGGER_MATCH_TO_STR) == 3
+        assert len(EDGE_TRIGGER_MATCH) == 3
 
     def test_no_duplicate_values(self):
-        for mapping in (EDGE_ACTION_TO_STR, EDGE_TRIGGER_TO_STR):
-            assert len(set(mapping.values())) == len(mapping)
+        # Bijection enforced by EnumMap constructor; verify counts match
+        for em in (EDGE_ACTION, EDGE_TRIGGER):
+            strs = [s for _, s in em.items()]
+            assert len(set(strs)) == len(strs)
 
 
 # ---------------------------------------------------------------------------
@@ -436,7 +434,7 @@ class TestBN700InvalidActionType:
         assert "BN700" in _ids(validate_rules([_edge_rule(action_type="nope")], phase=_E))
 
     def test_all_valid_action_types(self):
-        for action in STR_TO_EDGE_ACTION:
+        for action in EDGE_ACTION:
             ids = _ids(validate_rules([_edge_rule(action_type=action)], phase=_E))
             assert "BN700" not in ids, f"{action} incorrectly flagged"
 
@@ -453,7 +451,7 @@ class TestBN701InvalidTriggerType:
         assert "BN701" in _ids(validate_rules([r], phase=_E))
 
     def test_all_valid_trigger_types(self):
-        for ttype in STR_TO_EDGE_TRIGGER:
+        for ttype in EDGE_TRIGGER:
             trigger = {"type": ttype, "pattern_matching_type": "any", "pattern_matches": ["*"]}
             ids = _ids(validate_rules([_edge_rule(triggers=[trigger])], phase=_E))
             assert "BN701" not in ids, f"{ttype} incorrectly flagged"

@@ -34,10 +34,9 @@ class TestNormalizeShieldConfig:
     def test_bot_detection(self):
         bot = {
             "executionMode": 2,
-            "requestIntegritySensitivity": 2,
-            "ipSensitivity": 1,
-            "fingerprintSensitivity": 3,
-            "complexFingerprinting": True,
+            "requestIntegrity": {"sensitivity": 2},
+            "ipAddress": {"sensitivity": 1},
+            "browserFingerprint": {"sensitivity": 3, "complexEnabled": True},
         }
         result = normalize_shield_config({}, bot)
         assert result["bot_detection"]["execution_mode"] == "block"
@@ -66,7 +65,12 @@ class TestNormalizeShieldConfig:
 
     def test_empty(self):
         result = normalize_shield_config({}, {})
-        assert result == {}
+        # waf section always present (with defaults)
+        assert "bot_detection" not in result
+        assert "ddos" not in result
+        assert "upload_scanning" not in result
+        assert "waf" in result
+        assert result["waf"]["learning_mode"] is False
 
 
 class TestDenormalizeBotConfig:
@@ -80,10 +84,9 @@ class TestDenormalizeBotConfig:
         }
         result = denormalize_bot_config(config)
         assert result["executionMode"] == 2
-        assert result["requestIntegritySensitivity"] == 2
-        assert result["ipSensitivity"] == 1
-        assert result["fingerprintSensitivity"] == 3
-        assert result["complexFingerprinting"] is True
+        assert result["requestIntegrity"] == {"sensitivity": 2}
+        assert result["ipAddress"] == {"sensitivity": 1}
+        assert result["browserFingerprint"] == {"sensitivity": 3, "complexEnabled": True}
 
 
 class TestDenormalizeDDoSConfig:
@@ -191,7 +194,7 @@ class TestPrefetchHook:
         }
         result = _prefetch_shield_config(all_desired, _scope(), provider)
         assert result is not None
-        shield_zone, bot_config, _desired_config, _desired_managed = result
+        shield_zone, bot_config, _upload_config, _desired_config, _desired_managed = result
         assert shield_zone["dDoSShieldSensitivity"] == 2
         assert bot_config["executionMode"] == 1
 
@@ -201,7 +204,7 @@ class TestPrefetchHook:
         all_desired = {"bunny_waf_managed_rules": {"disabled": ["1", "2"]}}
         result = _prefetch_shield_config(all_desired, _scope(), provider)
         assert result is not None
-        _, _, desired_config, desired_managed = result
+        _, _, _, desired_config, desired_managed = result
         assert desired_config is None
         assert desired_managed is not None
 
@@ -213,7 +216,7 @@ class TestPrefetchHook:
         all_desired = {"bunny_shield_config": {"ddos": {"execution_mode": "block"}}}
         result = _prefetch_shield_config(all_desired, _scope(), provider)
         # Should not raise — returns empty shield_zone
-        shield_zone, _bot_config, _, _ = result
+        shield_zone, _bot_config, _, _, _ = result
         assert shield_zone == {}
 
 
@@ -228,7 +231,7 @@ class TestFinalizeHook:
         shield_zone = {"dDoSShieldSensitivity": 1, "dDoSExecutionMode": 0}
         bot_config = {}
         desired_config = {"ddos": {"shield_sensitivity": "high", "execution_mode": "block"}}
-        ctx = (shield_zone, bot_config, desired_config, None)
+        ctx = (shield_zone, bot_config, {}, desired_config, None)
 
         _finalize_shield_config(zp, {}, _scope(), MagicMock(), ctx)
         assert "bunny_shield_config" in zp.extension_plans
@@ -251,7 +254,7 @@ class TestFinalizeHook:
                 "challenge_window": 300,
             }
         }
-        ctx = (shield_zone, {}, desired_config, None)
+        ctx = (shield_zone, {}, {}, desired_config, None)
 
         _finalize_shield_config(zp, {}, _scope(), MagicMock(), ctx)
         assert "bunny_shield_config" not in zp.extension_plans
@@ -268,7 +271,7 @@ class TestFinalizeHook:
 
         shield_zone = {"wafDisabledRules": ["1"]}
         desired_managed = {"disabled": ["1", "2"]}
-        ctx = (shield_zone, {}, None, desired_managed)
+        ctx = (shield_zone, {}, {}, None, desired_managed)
 
         _finalize_shield_config(zp, {}, _scope(), MagicMock(), ctx)
         assert "bunny_waf_managed_rules" in zp.extension_plans
@@ -358,7 +361,7 @@ class TestShieldConfigFormatter:
     # -- format_text --------------------------------------------------------
 
     def test_format_text_with_changes(self):
-        fmt = ShieldConfigFormatter()
+        fmt = ShieldConfigFormatter("bunny_shield_config")
         plan = ShieldConfigPlan(
             changes=[
                 ShieldConfigChange("bot_detection", "execution_mode", "log", "block"),
@@ -378,7 +381,7 @@ class TestShieldConfigFormatter:
         assert "'high'" in lines[1]
 
     def test_format_text_skips_no_change(self):
-        fmt = ShieldConfigFormatter()
+        fmt = ShieldConfigFormatter("bunny_shield_config")
         plan = ShieldConfigPlan(
             changes=[
                 ShieldConfigChange("bot_detection", "execution_mode", "block", "block"),
@@ -387,12 +390,12 @@ class TestShieldConfigFormatter:
         assert fmt.format_text([plan], use_color=False) == []
 
     def test_format_text_empty_plans(self):
-        fmt = ShieldConfigFormatter()
+        fmt = ShieldConfigFormatter("bunny_shield_config")
         assert fmt.format_text([], use_color=False) == []
 
     def test_format_text_with_color(self):
         """With color enabled, output wraps in ANSI codes."""
-        fmt = ShieldConfigFormatter()
+        fmt = ShieldConfigFormatter("bunny_shield_config")
         plan = ShieldConfigPlan(
             changes=[
                 ShieldConfigChange("bot_detection", "execution_mode", "log", "block"),
@@ -407,7 +410,7 @@ class TestShieldConfigFormatter:
     # -- format_json --------------------------------------------------------
 
     def test_format_json_with_changes(self):
-        fmt = ShieldConfigFormatter()
+        fmt = ShieldConfigFormatter("bunny_shield_config")
         plan = ShieldConfigPlan(
             changes=[
                 ShieldConfigChange("bot_detection", "execution_mode", "log", "block"),
@@ -431,7 +434,7 @@ class TestShieldConfigFormatter:
         assert changes[1]["desired"] == 600
 
     def test_format_json_skips_no_change(self):
-        fmt = ShieldConfigFormatter()
+        fmt = ShieldConfigFormatter("bunny_shield_config")
         plan = ShieldConfigPlan(
             changes=[
                 ShieldConfigChange("bot_detection", "execution_mode", "block", "block"),
@@ -440,11 +443,11 @@ class TestShieldConfigFormatter:
         assert fmt.format_json([plan]) == []
 
     def test_format_json_empty_plans(self):
-        fmt = ShieldConfigFormatter()
+        fmt = ShieldConfigFormatter("bunny_shield_config")
         assert fmt.format_json([]) == []
 
     def test_format_json_multiple_plans(self):
-        fmt = ShieldConfigFormatter()
+        fmt = ShieldConfigFormatter("bunny_shield_config")
         plan1 = ShieldConfigPlan(
             changes=[ShieldConfigChange("bot_detection", "execution_mode", "log", "block")]
         )
@@ -459,7 +462,7 @@ class TestShieldConfigFormatter:
     # -- format_markdown ----------------------------------------------------
 
     def test_format_markdown_with_changes(self):
-        fmt = ShieldConfigFormatter()
+        fmt = ShieldConfigFormatter("bunny_shield_config")
         plan = ShieldConfigPlan(
             changes=[
                 ShieldConfigChange("bot_detection", "execution_mode", "log", "block"),
@@ -477,7 +480,7 @@ class TestShieldConfigFormatter:
         assert "ddos.shield_sensitivity" in lines[1]
 
     def test_format_markdown_skips_no_change(self):
-        fmt = ShieldConfigFormatter()
+        fmt = ShieldConfigFormatter("bunny_shield_config")
         plan = ShieldConfigPlan(
             changes=[
                 ShieldConfigChange("ddos", "challenge_window", 300, 300),
@@ -486,12 +489,12 @@ class TestShieldConfigFormatter:
         assert fmt.format_markdown([plan], pending_diffs=[]) == []
 
     def test_format_markdown_empty_plans(self):
-        fmt = ShieldConfigFormatter()
+        fmt = ShieldConfigFormatter("bunny_shield_config")
         assert fmt.format_markdown([], pending_diffs=[]) == []
 
     def test_format_markdown_escapes_pipes(self):
         """Pipe characters in values are escaped for markdown tables."""
-        fmt = ShieldConfigFormatter()
+        fmt = ShieldConfigFormatter("bunny_shield_config")
         plan = ShieldConfigPlan(
             changes=[
                 ShieldConfigChange("bot_detection", "execution_mode", "a|b", "c|d"),
@@ -505,7 +508,7 @@ class TestShieldConfigFormatter:
     # -- format_html --------------------------------------------------------
 
     def test_format_html_with_changes(self):
-        fmt = ShieldConfigFormatter()
+        fmt = ShieldConfigFormatter("bunny_shield_config")
         plan = ShieldConfigPlan(
             changes=[
                 ShieldConfigChange("bot_detection", "execution_mode", "log", "block"),
@@ -529,7 +532,7 @@ class TestShieldConfigFormatter:
         assert "Updates=2" in html
 
     def test_format_html_skips_no_change(self):
-        fmt = ShieldConfigFormatter()
+        fmt = ShieldConfigFormatter("bunny_shield_config")
         plan = ShieldConfigPlan(
             changes=[
                 ShieldConfigChange("bot_detection", "execution_mode", "block", "block"),
@@ -541,7 +544,7 @@ class TestShieldConfigFormatter:
         assert lines == []
 
     def test_format_html_empty_plans(self):
-        fmt = ShieldConfigFormatter()
+        fmt = ShieldConfigFormatter("bunny_shield_config")
         lines: list[str] = []
         result = fmt.format_html([], lines)
         assert result == (0, 0, 0, 0)
@@ -549,7 +552,7 @@ class TestShieldConfigFormatter:
 
     def test_format_html_escapes_special_chars(self):
         """HTML special characters in values are escaped."""
-        fmt = ShieldConfigFormatter()
+        fmt = ShieldConfigFormatter("bunny_shield_config")
         plan = ShieldConfigPlan(
             changes=[
                 ShieldConfigChange("bot_detection", "execution_mode", "<script>", "block"),
@@ -564,7 +567,7 @@ class TestShieldConfigFormatter:
     # -- format_report ------------------------------------------------------
 
     def test_format_report_with_drift(self):
-        fmt = ShieldConfigFormatter()
+        fmt = ShieldConfigFormatter("bunny_shield_config")
         plan = ShieldConfigPlan(
             changes=[
                 ShieldConfigChange("bot_detection", "execution_mode", "log", "block"),
@@ -585,7 +588,7 @@ class TestShieldConfigFormatter:
 
     def test_format_report_preserves_incoming_drift(self):
         """zone_has_drift=True is preserved even when extension has no drift."""
-        fmt = ShieldConfigFormatter()
+        fmt = ShieldConfigFormatter("bunny_shield_config")
         plan = ShieldConfigPlan(
             changes=[
                 ShieldConfigChange("bot_detection", "execution_mode", "block", "block"),
@@ -597,7 +600,7 @@ class TestShieldConfigFormatter:
         assert phases_data == []  # no extension entry since no changes
 
     def test_format_report_no_drift(self):
-        fmt = ShieldConfigFormatter()
+        fmt = ShieldConfigFormatter("bunny_shield_config")
         phases_data: list[dict] = []
         result = fmt.format_report([], zone_has_drift=False, phases_data=phases_data)
         assert result is False
@@ -605,7 +608,7 @@ class TestShieldConfigFormatter:
 
     def test_format_report_empty_plans_passes_through_drift(self):
         """With empty plans, returns the incoming zone_has_drift unchanged."""
-        fmt = ShieldConfigFormatter()
+        fmt = ShieldConfigFormatter("bunny_shield_config")
         phases_data: list[dict] = []
         result = fmt.format_report([], zone_has_drift=True, phases_data=phases_data)
         assert result is True
@@ -707,5 +710,9 @@ class TestDumpExtension:
         provider = MagicMock()
         provider.get_shield_zone_config.return_value = {}
         provider.get_bot_detection_config.return_value = {}
+        provider.get_upload_scanning_config.return_value = {}
         result = _dump_shield_config(_scope(), provider, None)
-        assert result is None
+        # waf section with defaults is always included
+        assert result is not None
+        assert "bunny_shield_config" in result
+        assert "waf" in result["bunny_shield_config"]

@@ -1,26 +1,25 @@
 """Offline validation for Bunny Shield WAF rules."""
 
 import ipaddress
-import json
 import re
 
 from octorules.linter.engine import LintResult, Severity
 
 from octorules_bunny._enums import (
+    ACCESS_LIST_TYPE,
+    ACTION,
+    BLOCKTIME,
+    COUNTER_KEY,
+    EDGE_ACTION,
+    EDGE_PATTERN_MATCH,
+    EDGE_TRIGGER,
+    EDGE_TRIGGER_MATCH,
     GEO_SUBVALUES,
-    STR_TO_ACCESS_LIST_TYPE,
-    STR_TO_ACTION,
-    STR_TO_BLOCKTIME,
-    STR_TO_COUNTER_KEY,
-    STR_TO_EDGE_ACTION,
-    STR_TO_EDGE_PATTERN_MATCH,
-    STR_TO_EDGE_TRIGGER,
-    STR_TO_EDGE_TRIGGER_MATCH,
-    STR_TO_OPERATOR,
-    STR_TO_SEVERITY,
-    STR_TO_TIMEFRAME,
-    STR_TO_TRANSFORMATION,
-    STR_TO_VARIABLE,
+    OPERATOR,
+    SEVERITY,
+    TIMEFRAME,
+    TRANSFORMATION,
+    VARIABLE,
     VARIABLES_WITH_SUBVALUE,
 )
 
@@ -152,6 +151,10 @@ _PRIVATE_RANGES: list[tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, str]]
     (ipaddress.ip_network("::ffff:0:0:0/96"), "IPv4-translated"),
 ]
 
+# Partitioned by IP version for faster lookup (avoids version comparison per entry).
+_PRIVATE_V4 = [(n, d) for n, d in _PRIVATE_RANGES if n.version == 4]
+_PRIVATE_V6 = [(n, d) for n, d in _PRIVATE_RANGES if n.version == 6]
+
 
 def _result(
     rule_id: str,
@@ -174,14 +177,31 @@ def _result(
     )
 
 
+def _condition_key(cond: dict) -> tuple[str, str, str, str]:
+    """Return a hashable key for a condition dict (faster than json.dumps)."""
+    return (
+        str(cond.get("variable", "")),
+        str(cond.get("operator", "")),
+        str(cond.get("value", "")),
+        str(cond.get("variable_value", "")),
+    )
+
+
 def _is_private_ip(addr_str: str) -> str | None:
-    """Return description if *addr_str* falls within a reserved/bogon range, else None."""
+    """Return description if *addr_str* falls within a reserved/bogon range, else None.
+
+    Uses version-partitioned lists so only IPv4 or IPv6 ranges are
+    scanned, cutting the average search length in half.
+    """
     try:
         net = ipaddress.ip_network(addr_str, strict=False)
     except ValueError:
+        # Unparseable addresses bypass this check — BN302 catches them
+        # upstream, so returning None here is intentional.
         return None
-    for priv, desc in _PRIVATE_RANGES:
-        if net.version == priv.version and net.subnet_of(priv):
+    pool = _PRIVATE_V4 if net.version == 4 else _PRIVATE_V6
+    for priv, desc in pool:
+        if net.subnet_of(priv):
             return desc
     return None
 
@@ -204,7 +224,7 @@ def _validate_condition(
         results.append(
             _result("BN400", Severity.ERROR, f"{prefix}: missing 'variable'", phase, ref)
         )
-    elif isinstance(var, str) and var not in STR_TO_VARIABLE:
+    elif isinstance(var, str) and var not in VARIABLE:
         results.append(
             _result(
                 "BN102",
@@ -221,7 +241,7 @@ def _validate_condition(
         results.append(
             _result("BN401", Severity.ERROR, f"{prefix}: missing 'operator'", phase, ref)
         )
-    elif isinstance(op, str) and op not in STR_TO_OPERATOR:
+    elif isinstance(op, str) and op not in OPERATOR:
         results.append(
             _result(
                 "BN101",
@@ -248,7 +268,7 @@ def _validate_condition(
         )
 
     # BN106: Non-detect operators require a value
-    if isinstance(op, str) and op in STR_TO_OPERATOR and op not in _DETECT_OPERATORS:
+    if isinstance(op, str) and op in OPERATOR and op not in _DETECT_OPERATORS:
         if cond.get("value") in (None, ""):
             results.append(
                 _result(
@@ -284,7 +304,7 @@ def _validate_condition(
         isinstance(op, str)
         and op in _NUMERIC_OPERATORS
         and isinstance(var, str)
-        and var in STR_TO_VARIABLE
+        and var in VARIABLE
         and var not in ("args_combined_size", "response_status")
     ):
         results.append(
@@ -321,12 +341,7 @@ def _validate_condition(
     sub = cond.get("variable_value", "")
 
     # BN109: Sub-value on variable that doesn't support it
-    if (
-        sub
-        and isinstance(var, str)
-        and var in STR_TO_VARIABLE
-        and var not in VARIABLES_WITH_SUBVALUE
-    ):
+    if sub and isinstance(var, str) and var in VARIABLE and var not in VARIABLES_WITH_SUBVALUE:
         results.append(
             _result(
                 "BN109",
@@ -445,7 +460,7 @@ def _validate_custom_rule(rule: dict, results: list[LintResult], phase: str) -> 
     action = rule.get("action", "")
     if not action:
         results.append(_result("BN003", Severity.ERROR, "Rule missing 'action'", phase, ref))
-    elif isinstance(action, str) and action not in STR_TO_ACTION:
+    elif isinstance(action, str) and action not in ACTION:
         results.append(
             _result(
                 "BN100", Severity.ERROR, f"Invalid action {action!r}", phase, ref, field="action"
@@ -454,7 +469,7 @@ def _validate_custom_rule(rule: dict, results: list[LintResult], phase: str) -> 
 
     # BN104: severity
     sev = rule.get("severity", "")
-    if sev and isinstance(sev, str) and sev not in STR_TO_SEVERITY:
+    if sev and isinstance(sev, str) and sev not in SEVERITY:
         results.append(
             _result(
                 "BN104",
@@ -518,7 +533,7 @@ def _validate_custom_rule(rule: dict, results: list[LintResult], phase: str) -> 
     seen_conds: dict[str, int] = {}
     for i, cond in enumerate(conditions):
         _validate_condition(cond, results, phase, ref, i)
-        key = json.dumps(cond, sort_keys=True)
+        key = _condition_key(cond)
         if key in seen_conds:
             results.append(
                 _result(
@@ -537,7 +552,7 @@ def _validate_custom_rule(rule: dict, results: list[LintResult], phase: str) -> 
     transforms = rule.get("transformations", [])
     seen_transforms: set[str] = set()
     for t in transforms:
-        if isinstance(t, str) and t not in STR_TO_TRANSFORMATION:
+        if isinstance(t, str) and t not in TRANSFORMATION:
             results.append(
                 _result(
                     "BN103",
@@ -593,7 +608,7 @@ def _validate_rate_limit_rule(rule: dict, results: list[LintResult], phase: str)
         results.append(
             _result("BN201", Severity.ERROR, "Missing 'timeframe'", phase, ref, field="timeframe")
         )
-    elif isinstance(tf, str) and tf not in STR_TO_TIMEFRAME:
+    elif isinstance(tf, str) and tf not in TIMEFRAME:
         results.append(
             _result(
                 "BN201",
@@ -602,7 +617,7 @@ def _validate_rate_limit_rule(rule: dict, results: list[LintResult], phase: str)
                 phase,
                 ref,
                 field="timeframe",
-                suggestion=f"Valid: {sorted(STR_TO_TIMEFRAME)}",
+                suggestion=f"Valid: {sorted(TIMEFRAME)}",
             )
         )
 
@@ -612,7 +627,7 @@ def _validate_rate_limit_rule(rule: dict, results: list[LintResult], phase: str)
         results.append(
             _result("BN202", Severity.ERROR, "Missing 'block_time'", phase, ref, field="block_time")
         )
-    elif isinstance(bt, str) and bt not in STR_TO_BLOCKTIME:
+    elif isinstance(bt, str) and bt not in BLOCKTIME:
         results.append(
             _result(
                 "BN202",
@@ -621,7 +636,7 @@ def _validate_rate_limit_rule(rule: dict, results: list[LintResult], phase: str)
                 phase,
                 ref,
                 field="block_time",
-                suggestion=f"Valid: {sorted(STR_TO_BLOCKTIME)}",
+                suggestion=f"Valid: {sorted(BLOCKTIME)}",
             )
         )
 
@@ -651,7 +666,7 @@ def _validate_rate_limit_rule(rule: dict, results: list[LintResult], phase: str)
                 field="counter_key_type",
             )
         )
-    elif isinstance(ck, str) and ck not in STR_TO_COUNTER_KEY:
+    elif isinstance(ck, str) and ck not in COUNTER_KEY:
         results.append(
             _result(
                 "BN203",
@@ -660,7 +675,7 @@ def _validate_rate_limit_rule(rule: dict, results: list[LintResult], phase: str)
                 phase,
                 ref,
                 field="counter_key_type",
-                suggestion=f"Valid: {sorted(STR_TO_COUNTER_KEY)}",
+                suggestion=f"Valid: {sorted(COUNTER_KEY)}",
             )
         )
 
@@ -694,7 +709,7 @@ def _validate_access_list(rule: dict, results: list[LintResult], phase: str) -> 
     list_type = rule.get("type", "")
     if not list_type:
         results.append(_result("BN300", Severity.ERROR, "Access list missing 'type'", phase, ref))
-    elif isinstance(list_type, str) and list_type not in STR_TO_ACCESS_LIST_TYPE:
+    elif isinstance(list_type, str) and list_type not in ACCESS_LIST_TYPE:
         results.append(
             _result(
                 "BN300",
@@ -703,7 +718,7 @@ def _validate_access_list(rule: dict, results: list[LintResult], phase: str) -> 
                 phase,
                 ref,
                 field="type",
-                suggestion=f"Valid: {sorted(STR_TO_ACCESS_LIST_TYPE)}",
+                suggestion=f"Valid: {sorted(ACCESS_LIST_TYPE)}",
             )
         )
 
@@ -738,7 +753,7 @@ def _validate_access_list(rule: dict, results: list[LintResult], phase: str) -> 
     action = rule.get("action", "")
     if not action:
         results.append(_result("BN003", Severity.ERROR, "Access list missing 'action'", phase, ref))
-    elif isinstance(action, str) and action not in STR_TO_ACTION:
+    elif isinstance(action, str) and action not in ACTION:
         results.append(
             _result(
                 "BN100",
@@ -746,7 +761,7 @@ def _validate_access_list(rule: dict, results: list[LintResult], phase: str) -> 
                 f"Invalid action {action!r}",
                 phase,
                 ref,
-                suggestion=f"Valid: {sorted(STR_TO_ACTION)}",
+                suggestion=f"Valid: {sorted(ACTION)}",
             )
         )
 
@@ -1050,7 +1065,7 @@ def _validate_edge_rule(rule: dict, results: list[LintResult], phase: str) -> No
         results.append(
             _result("BN700", Severity.ERROR, "Edge rule missing 'action_type'", phase, ref)
         )
-    elif isinstance(action_type, str) and action_type not in STR_TO_EDGE_ACTION:
+    elif isinstance(action_type, str) and action_type not in EDGE_ACTION:
         results.append(
             _result(
                 "BN700",
@@ -1059,7 +1074,7 @@ def _validate_edge_rule(rule: dict, results: list[LintResult], phase: str) -> No
                 phase,
                 ref,
                 field="action_type",
-                suggestion=f"Valid: {sorted(STR_TO_EDGE_ACTION)}",
+                suggestion=f"Valid: {sorted(EDGE_ACTION)}",
             )
         )
 
@@ -1089,7 +1104,7 @@ def _validate_edge_rule(rule: dict, results: list[LintResult], phase: str) -> No
             "set_request_header",
         }
     )
-    if isinstance(action_type, str) and action_type in STR_TO_EDGE_ACTION:
+    if isinstance(action_type, str) and action_type in EDGE_ACTION:
         param1 = rule.get("action_parameter_1", "")
         param2 = rule.get("action_parameter_2", "")
         p1_empty = not param1 or (isinstance(param1, str) and not param1.strip())
@@ -1119,7 +1134,7 @@ def _validate_edge_rule(rule: dict, results: list[LintResult], phase: str) -> No
 
     # BN703: invalid trigger_matching_type
     tmt = rule.get("trigger_matching_type", "")
-    if tmt and isinstance(tmt, str) and tmt not in STR_TO_EDGE_TRIGGER_MATCH:
+    if tmt and isinstance(tmt, str) and tmt not in EDGE_TRIGGER_MATCH:
         results.append(
             _result(
                 "BN703",
@@ -1128,7 +1143,7 @@ def _validate_edge_rule(rule: dict, results: list[LintResult], phase: str) -> No
                 phase,
                 ref,
                 field="trigger_matching_type",
-                suggestion=f"Valid: {sorted(STR_TO_EDGE_TRIGGER_MATCH)}",
+                suggestion=f"Valid: {sorted(EDGE_TRIGGER_MATCH)}",
             )
         )
 
@@ -1156,7 +1171,7 @@ def _validate_edge_rule(rule: dict, results: list[LintResult], phase: str) -> No
                     field="triggers",
                 )
             )
-        elif isinstance(ttype, str) and ttype not in STR_TO_EDGE_TRIGGER:
+        elif isinstance(ttype, str) and ttype not in EDGE_TRIGGER:
             results.append(
                 _result(
                     "BN701",
@@ -1165,7 +1180,7 @@ def _validate_edge_rule(rule: dict, results: list[LintResult], phase: str) -> No
                     phase,
                     ref,
                     field="triggers",
-                    suggestion=f"Valid: {sorted(STR_TO_EDGE_TRIGGER)}",
+                    suggestion=f"Valid: {sorted(EDGE_TRIGGER)}",
                 )
             )
 
@@ -1196,7 +1211,7 @@ def _validate_edge_rule(rule: dict, results: list[LintResult], phase: str) -> No
 
         # BN705: invalid pattern_matching_type
         pmt = trigger.get("pattern_matching_type", "")
-        if pmt and isinstance(pmt, str) and pmt not in STR_TO_EDGE_PATTERN_MATCH:
+        if pmt and isinstance(pmt, str) and pmt not in EDGE_PATTERN_MATCH:
             results.append(
                 _result(
                     "BN705",
@@ -1205,7 +1220,7 @@ def _validate_edge_rule(rule: dict, results: list[LintResult], phase: str) -> No
                     phase,
                     ref,
                     field="triggers",
-                    suggestion=f"Valid: {sorted(STR_TO_EDGE_PATTERN_MATCH)}",
+                    suggestion=f"Valid: {sorted(EDGE_PATTERN_MATCH)}",
                 )
             )
 

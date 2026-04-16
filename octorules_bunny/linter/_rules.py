@@ -128,4 +128,73 @@ BN602 = RuleMeta(
     "BN602", "best_practice", "Access list is disabled (enabled: false)", Severity.INFO
 )
 
-BN_RULE_METAS: list[RuleMeta] = [obj for obj in globals().values() if isinstance(obj, RuleMeta)]
+BN_RULE_METAS: tuple[RuleMeta, ...] = (
+    # BN0xx — Structural
+    BN001,
+    BN002,
+    BN003,
+    BN004,
+    BN005,
+    BN006,
+    BN007,
+    BN010,
+    BN011,
+    # BN1xx — Enum validation
+    BN100,
+    BN101,
+    BN102,
+    BN103,
+    BN104,
+    BN105,
+    BN106,
+    BN107,
+    BN108,
+    BN109,
+    # BN1xx — Variable sub-value
+    BN115,
+    BN116,
+    BN117,
+    # BN1xx — Transformation
+    BN125,
+    # BN2xx — Rate limit
+    BN200,
+    BN201,
+    BN202,
+    BN203,
+    BN210,
+    # BN3xx — Access list
+    BN300,
+    BN301,
+    BN302,
+    BN303,
+    BN304,
+    BN305,
+    BN306,
+    BN307,
+    BN308,
+    BN309,
+    BN310,
+    # BN4xx — Condition
+    BN400,
+    BN401,
+    BN402,
+    BN403,
+    BN404,
+    # BN5xx — Cross-rule
+    BN500,
+    BN501,
+    BN502,
+    BN503,
+    # BN6xx — Best practice
+    BN600,
+    BN601,
+    BN602,
+    # BN7xx — Edge rules
+    BN700,
+    BN701,
+    BN702,
+    BN703,
+    BN704,
+    BN705,
+    BN706,
+)

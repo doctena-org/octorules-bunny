@@ -336,6 +336,46 @@ class TestPagination:
         assert len(result) == 2
         client.close()
 
+    @patch.object(BunnyShieldClient, "_request")
+    def test_pascalcase_items_key(self, mock_request):
+        """Pull Zone API uses PascalCase: Items, HasMoreItems, TotalItems."""
+        mock_request.return_value = {
+            "Items": [{"Id": 1}, {"Id": 2}],
+            "HasMoreItems": False,
+            "TotalItems": 2,
+        }
+        client = BunnyShieldClient("key")
+        result = client._paginate("/pullzone")
+        assert len(result) == 2
+        assert result[0]["Id"] == 1
+        assert result[1]["Id"] == 2
+        # Single page — _request called once
+        assert mock_request.call_count == 1
+        client.close()
+
+    @patch.object(BunnyShieldClient, "_request")
+    def test_pascalcase_has_more_items_true(self, mock_request):
+        """HasMoreItems=True triggers a second page fetch."""
+        mock_request.side_effect = [
+            {
+                "Items": [{"Id": 1}],
+                "HasMoreItems": True,
+                "TotalItems": 2,
+            },
+            {
+                "Items": [{"Id": 2}],
+                "HasMoreItems": False,
+                "TotalItems": 2,
+            },
+        ]
+        client = BunnyShieldClient("key")
+        result = client._paginate("/pullzone")
+        assert len(result) == 2
+        assert result[0]["Id"] == 1
+        assert result[1]["Id"] == 2
+        assert mock_request.call_count == 2
+        client.close()
+
 
 # ---------------------------------------------------------------------------
 # API method delegation
@@ -395,15 +435,29 @@ class TestAPIMethods:
         client.close()
 
     @patch.object(BunnyShieldClient, "_request")
-    def test_list_access_lists_dict_response(self, mock_request):
-        mock_request.return_value = {"data": [{"id": 1}]}
+    def test_list_access_lists_custom_lists(self, mock_request):
+        """API returns {customLists: [...], managedLists: [...]}."""
+        mock_request.return_value = {
+            "customLists": [{"listId": 1, "name": "test"}],
+            "managedLists": [{"listId": 99}],
+        }
         client = BunnyShieldClient("key")
         result = client.list_access_lists(42)
-        assert result == [{"id": 1}]
+        assert result == [{"listId": 1, "name": "test"}]
         client.close()
 
     @patch.object(BunnyShieldClient, "_request")
-    def test_list_access_lists_list_response(self, mock_request):
+    def test_list_access_lists_empty(self, mock_request):
+        """API returns no custom lists."""
+        mock_request.return_value = {"customLists": [], "managedLists": []}
+        client = BunnyShieldClient("key")
+        result = client.list_access_lists(42)
+        assert result == []
+        client.close()
+
+    @patch.object(BunnyShieldClient, "_request")
+    def test_list_access_lists_fallback_list(self, mock_request):
+        """Handle unexpected flat list response gracefully."""
         mock_request.return_value = [{"id": 1}]
         client = BunnyShieldClient("key")
         result = client.list_access_lists(42)

@@ -11,66 +11,52 @@ Shield in ``octorules_cloudflare/page_shield.py``.
 
 import logging
 import threading
-from dataclasses import dataclass, field
 
+from octorules_bunny._config_base import ConfigChange, ConfigFormatter, ConfigPlan, diff_flat_dicts
 from octorules_bunny._enums import (
-    EXECUTION_MODE_TO_STR,
-    SENSITIVITY_TO_STR,
-    STR_TO_EXECUTION_MODE,
-    STR_TO_SENSITIVITY,
-    _resolve,
-    _unresolve,
+    EXECUTION_MODE,
+    SENSITIVITY,
 )
 
 log = logging.getLogger(__name__)
 
-
-# ---------------------------------------------------------------------------
-# Data model for config diffs
-# ---------------------------------------------------------------------------
-@dataclass
-class ShieldConfigChange:
-    """A single field change in a config section."""
-
-    section: str  # "bot_detection", "ddos", or "managed_rules"
-    field: str
-    current: object
-    desired: object
-
-    @property
-    def has_changes(self) -> bool:
-        return self.current != self.desired
-
-
-@dataclass
-class ShieldConfigPlan:
-    """Plan for all config changes in a zone."""
-
-    changes: list[ShieldConfigChange] = field(default_factory=list)
-
-    @property
-    def has_changes(self) -> bool:
-        return any(c.has_changes for c in self.changes)
+# Re-export for backward compatibility (tests, other modules that import these).
+ShieldConfigChange = ConfigChange
+ShieldConfigPlan = ConfigPlan
+ShieldConfigFormatter = ConfigFormatter
 
 
 # ---------------------------------------------------------------------------
 # Shield config normalization
 # ---------------------------------------------------------------------------
-def normalize_shield_config(shield_zone: dict, bot_config: dict) -> dict:
+def normalize_shield_config(
+    shield_zone: dict, bot_config: dict, *, upload_config: dict | None = None
+) -> dict:
     """Build the normalized ``bunny_shield_config`` dict from API data."""
     result: dict = {}
 
     if bot_config:
+        # The bot detection API uses nested objects:
+        #   requestIntegrity.sensitivity, ipAddress.sensitivity,
+        #   browserFingerprint.sensitivity, browserFingerprint.complexEnabled
+        ri = bot_config.get("requestIntegrity", {})
+        ip = bot_config.get("ipAddress", {})
+        bf = bot_config.get("browserFingerprint", {})
         result["bot_detection"] = {
-            "execution_mode": _resolve(EXECUTION_MODE_TO_STR, bot_config.get("executionMode", 0)),
-            "request_integrity_sensitivity": _resolve(
-                SENSITIVITY_TO_STR, bot_config.get("requestIntegritySensitivity", 0)
+            "execution_mode": EXECUTION_MODE.resolve(bot_config.get("executionMode", 0)),
+            "request_integrity_sensitivity": SENSITIVITY.resolve(
+                ri.get("sensitivity", 0) if isinstance(ri, dict) else 0
             ),
-            "ip_sensitivity": _resolve(SENSITIVITY_TO_STR, bot_config.get("ipSensitivity", 0)),
-            "fingerprint_sensitivity": _resolve(
-                SENSITIVITY_TO_STR, bot_config.get("fingerprintSensitivity", 0)
+            "ip_sensitivity": SENSITIVITY.resolve(
+                ip.get("sensitivity", 0) if isinstance(ip, dict) else 0
             ),
-            "complex_fingerprinting": bool(bot_config.get("complexFingerprinting", False)),
+            "fingerprint_sensitivity": SENSITIVITY.resolve(
+                bf.get("sensitivity", 0) if isinstance(bf, dict) else 0
+            ),
+            "complex_fingerprinting": bool(
+                bf.get("complexEnabled", False) if isinstance(bf, dict) else False
+            ),
+            "fingerprint_aggression": (bf.get("aggression", 1) if isinstance(bf, dict) else 1),
         }
 
     if any(
@@ -78,13 +64,39 @@ def normalize_shield_config(shield_zone: dict, bot_config: dict) -> dict:
         for k in ("dDoSShieldSensitivity", "dDoSExecutionMode", "dDoSChallengeWindow")
     ):
         result["ddos"] = {
-            "shield_sensitivity": _resolve(
-                SENSITIVITY_TO_STR, shield_zone.get("dDoSShieldSensitivity", 0)
-            ),
-            "execution_mode": _resolve(
-                EXECUTION_MODE_TO_STR, shield_zone.get("dDoSExecutionMode", 0)
-            ),
+            "shield_sensitivity": SENSITIVITY.resolve(shield_zone.get("dDoSShieldSensitivity", 0)),
+            "execution_mode": EXECUTION_MODE.resolve(shield_zone.get("dDoSExecutionMode", 0)),
             "challenge_window": shield_zone.get("dDoSChallengeWindow", 0),
+        }
+
+    # WAF settings — global switches, learning mode, body limits, engine config
+    # WAFExecutionMode: 0=Log, 1=Block (different from the general EXECUTION_MODE)
+    _WAF_EXEC = {0: "log", 1: "block"}
+    result["waf"] = {
+        "enabled": bool(shield_zone.get("wafEnabled", False)),
+        "execution_mode": _WAF_EXEC.get(shield_zone.get("wafExecutionMode", 0), "log"),
+        "learning_mode": bool(shield_zone.get("learningMode", False)),
+        "learning_mode_until": shield_zone.get("learningModeUntil", ""),
+        "request_body_limit_action": shield_zone.get("wafRequestBodyLimitAction", 0),
+        "response_body_limit_action": shield_zone.get("wafResponseBodyLimitAction", 0),
+        "whitelabel_response_pages": bool(shield_zone.get("whitelabelResponsePages", False)),
+        "request_header_logging_enabled": bool(
+            shield_zone.get("wafRequestHeaderLoggingEnabled", False)
+        ),
+        "request_ignored_headers": shield_zone.get("wafRequestIgnoredHeaders", []),
+        "realtime_threat_intelligence_enabled": bool(
+            shield_zone.get("wafRealtimeThreatIntelligenceEnabled", False)
+        ),
+        "profile_id": shield_zone.get("wafProfileId"),
+        "engine_config": shield_zone.get("wafEngineConfig") or [],
+    }
+
+    # Upload scanning (separate API endpoint)
+    if upload_config:
+        result["upload_scanning"] = {
+            "enabled": bool(upload_config.get("isEnabled", False)),
+            "csam_scanning_mode": upload_config.get("csamScanningMode", 0),
+            "antivirus_scanning_mode": upload_config.get("antivirusScanningMode", 0),
         }
 
     return result
@@ -93,26 +105,37 @@ def normalize_shield_config(shield_zone: dict, bot_config: dict) -> dict:
 def denormalize_bot_config(config: dict) -> dict:
     """Convert YAML bot_detection section to API PATCH payload.
 
+    The bot detection API uses nested objects::
+
+        {
+            "executionMode": 1,
+            "requestIntegrity": {"sensitivity": 1},
+            "ipAddress": {"sensitivity": 1},
+            "browserFingerprint": {"sensitivity": 2, "complexEnabled": true}
+        }
+
     Only includes keys that are present in *config* so that partial
     updates don't reset unspecified fields to defaults.
     """
-    _MAP = {
-        "execution_mode": ("executionMode", lambda v: _unresolve(STR_TO_EXECUTION_MODE, v)),
-        "request_integrity_sensitivity": (
-            "requestIntegritySensitivity",
-            lambda v: _unresolve(STR_TO_SENSITIVITY, v),
-        ),
-        "ip_sensitivity": ("ipSensitivity", lambda v: _unresolve(STR_TO_SENSITIVITY, v)),
-        "fingerprint_sensitivity": (
-            "fingerprintSensitivity",
-            lambda v: _unresolve(STR_TO_SENSITIVITY, v),
-        ),
-        "complex_fingerprinting": ("complexFingerprinting", lambda v: v),
-    }
     result: dict = {}
-    for yaml_key, (api_key, transform) in _MAP.items():
-        if yaml_key in config:
-            result[api_key] = transform(config[yaml_key])
+    if "execution_mode" in config:
+        result["executionMode"] = EXECUTION_MODE.unresolve(config["execution_mode"])
+    if "request_integrity_sensitivity" in config:
+        result["requestIntegrity"] = {
+            "sensitivity": SENSITIVITY.unresolve(config["request_integrity_sensitivity"])
+        }
+    if "ip_sensitivity" in config:
+        result["ipAddress"] = {"sensitivity": SENSITIVITY.unresolve(config["ip_sensitivity"])}
+    _BF_KEYS = ("fingerprint_sensitivity", "complex_fingerprinting", "fingerprint_aggression")
+    if any(k in config for k in _BF_KEYS):
+        bf: dict = {}
+        if "fingerprint_sensitivity" in config:
+            bf["sensitivity"] = SENSITIVITY.unresolve(config["fingerprint_sensitivity"])
+        if "complex_fingerprinting" in config:
+            bf["complexEnabled"] = config["complex_fingerprinting"]
+        if "fingerprint_aggression" in config:
+            bf["aggression"] = config["fingerprint_aggression"]
+        result["browserFingerprint"] = bf
     return result
 
 
@@ -125,10 +148,55 @@ def denormalize_ddos_config(config: dict) -> dict:
     _MAP = {
         "shield_sensitivity": (
             "dDoSShieldSensitivity",
-            lambda v: _unresolve(STR_TO_SENSITIVITY, v),
+            lambda v: SENSITIVITY.unresolve(v),
         ),
-        "execution_mode": ("dDoSExecutionMode", lambda v: _unresolve(STR_TO_EXECUTION_MODE, v)),
+        "execution_mode": ("dDoSExecutionMode", lambda v: EXECUTION_MODE.unresolve(v)),
         "challenge_window": ("dDoSChallengeWindow", lambda v: v),
+    }
+    result: dict = {}
+    for yaml_key, (api_key, transform) in _MAP.items():
+        if yaml_key in config:
+            result[api_key] = transform(config[yaml_key])
+    return result
+
+
+def denormalize_waf_settings(config: dict) -> dict:
+    """Convert YAML waf section to Shield Zone PATCH payload fields.
+
+    ``learning_mode_until`` is read-only (set by the API when learning
+    mode is enabled) and is excluded from the denormalized output.
+    """
+    # WAFExecutionMode: "log"->0, "block"->1
+    _WAF_EXEC_REV = {"log": 0, "block": 1}
+    _MAP = {
+        "enabled": ("wafEnabled", lambda v: v),
+        "execution_mode": ("wafExecutionMode", lambda v: _WAF_EXEC_REV.get(v, 0)),
+        "learning_mode": ("learningMode", lambda v: v),
+        "request_body_limit_action": ("wafRequestBodyLimitAction", lambda v: v),
+        "response_body_limit_action": ("wafResponseBodyLimitAction", lambda v: v),
+        "whitelabel_response_pages": ("whitelabelResponsePages", lambda v: v),
+        "request_header_logging_enabled": ("wafRequestHeaderLoggingEnabled", lambda v: v),
+        "request_ignored_headers": ("wafRequestIgnoredHeaders", lambda v: v),
+        "realtime_threat_intelligence_enabled": (
+            "wafRealtimeThreatIntelligenceEnabled",
+            lambda v: v,
+        ),
+        "profile_id": ("wafProfileId", lambda v: v),
+        "engine_config": ("wafEngineConfig", lambda v: v),
+    }
+    result: dict = {}
+    for yaml_key, (api_key, transform) in _MAP.items():
+        if yaml_key in config:
+            result[api_key] = transform(config[yaml_key])
+    return result
+
+
+def denormalize_upload_scanning(config: dict) -> dict:
+    """Convert YAML upload_scanning section to API PATCH payload."""
+    _MAP = {
+        "enabled": ("isEnabled", lambda v: v),
+        "csam_scanning_mode": ("csamScanningMode", lambda v: v),
+        "antivirus_scanning_mode": ("antivirusScanningMode", lambda v: v),
     }
     result: dict = {}
     for yaml_key, (api_key, transform) in _MAP.items():
@@ -168,40 +236,28 @@ def denormalize_managed_rules(config: dict) -> dict:
 # ---------------------------------------------------------------------------
 # Diff computation
 # ---------------------------------------------------------------------------
-def _diff_dict(section: str, current: dict, desired: dict) -> list[ShieldConfigChange]:
-    """Compare two flat dicts and return field-level changes."""
-    changes: list[ShieldConfigChange] = []
-    all_keys = sorted(desired.keys())
-    for key in all_keys:
-        cur = current.get(key)
-        des = desired.get(key)
-        if cur != des:
-            changes.append(ShieldConfigChange(section=section, field=key, current=cur, desired=des))
-    return changes
-
-
-def diff_shield_config(current: dict, desired: dict) -> ShieldConfigPlan:
+def diff_shield_config(current: dict, desired: dict) -> ConfigPlan:
     """Diff current vs desired shield config. Returns a plan."""
-    changes: list[ShieldConfigChange] = []
-    for section in ("bot_detection", "ddos"):
+    changes: list[ConfigChange] = []
+    for section in ("bot_detection", "ddos", "waf", "upload_scanning"):
         cur_section = current.get(section, {})
         des_section = desired.get(section, {})
         if cur_section or des_section:
-            changes.extend(_diff_dict(section, cur_section, des_section))
-    return ShieldConfigPlan(changes=changes)
+            changes.extend(diff_flat_dicts(section, cur_section, des_section))
+    return ConfigPlan(changes=changes)
 
 
-def diff_managed_rules(current: dict, desired: dict) -> ShieldConfigPlan:
+def diff_managed_rules(current: dict, desired: dict) -> ConfigPlan:
     """Diff current vs desired managed rule overrides."""
-    changes: list[ShieldConfigChange] = []
+    changes: list[ConfigChange] = []
     for key in ("disabled", "log_only"):
         cur = sorted(current.get(key, []))
         des = sorted(desired.get(key, []))
         if cur != des:
             changes.append(
-                ShieldConfigChange(section="managed_rules", field=key, current=cur, desired=des)
+                ConfigChange(section="managed_rules", field=key, current=cur, desired=des)
             )
-    return ShieldConfigPlan(changes=changes)
+    return ConfigPlan(changes=changes)
 
 
 # ---------------------------------------------------------------------------
@@ -233,7 +289,16 @@ def _prefetch_shield_config(all_desired, scope, provider):
         except ProviderError:
             log.warning("Failed to fetch bot detection config for %s", scope.label)
 
-    return (shield_zone, bot_config, desired_config, desired_managed)
+    upload_config = {}
+    if desired_config and desired_config.get("upload_scanning"):
+        try:
+            upload_config = provider.get_upload_scanning_config(scope)
+        except ProviderAuthError:
+            raise
+        except ProviderError:
+            log.warning("Failed to fetch upload scanning config for %s", scope.label)
+
+    return (shield_zone, bot_config, upload_config, desired_config, desired_managed)
 
 
 def _finalize_shield_config(zp, all_desired, scope, provider, ctx):
@@ -241,11 +306,13 @@ def _finalize_shield_config(zp, all_desired, scope, provider, ctx):
     if ctx is None:
         return
 
-    shield_zone, bot_config, desired_config, desired_managed = ctx
+    shield_zone, bot_config, upload_config, desired_config, desired_managed = ctx
 
-    # Shield config (bot + DDoS)
+    # Shield config (bot + DDoS + waf + upload_scanning)
     if desired_config is not None:
-        current_config = normalize_shield_config(shield_zone, bot_config)
+        current_config = normalize_shield_config(
+            shield_zone, bot_config, upload_config=upload_config
+        )
         plan = diff_shield_config(current_config, desired_config)
         if plan.has_changes:
             zp.extension_plans.setdefault("bunny_shield_config", []).append(plan)
@@ -270,7 +337,7 @@ def _apply_shield_config(zp, plans, scope, provider):
     sections_done: set[str] = set()
 
     for plan in plans:
-        if not isinstance(plan, ShieldConfigPlan) or not plan.has_changes:
+        if not isinstance(plan, ConfigPlan) or not plan.has_changes:
             continue
 
         for change in plan.changes:
@@ -295,6 +362,24 @@ def _apply_shield_config(zp, plans, scope, provider):
                     synced.append("bunny_shield_config:ddos")
                 sections_done.add("ddos")
 
+            elif change.section == "waf":
+                waf_desired = {c.field: c.desired for c in plan.changes if c.section == "waf"}
+                if waf_desired:
+                    payload = denormalize_waf_settings(waf_desired)
+                    provider.update_shield_zone_config(scope, payload)
+                    synced.append("bunny_shield_config:waf")
+                sections_done.add("waf")
+
+            elif change.section == "upload_scanning":
+                us_desired = {
+                    c.field: c.desired for c in plan.changes if c.section == "upload_scanning"
+                }
+                if us_desired:
+                    payload = denormalize_upload_scanning(us_desired)
+                    provider.update_upload_scanning_config(scope, payload)
+                    synced.append("bunny_shield_config:upload_scanning")
+                sections_done.add("upload_scanning")
+
             elif change.section == "managed_rules":
                 managed_desired = {
                     c.field: c.desired for c in plan.changes if c.section == "managed_rules"
@@ -314,125 +399,10 @@ def _apply_managed_rules(zp, plans, scope, provider):
 
 
 # ---------------------------------------------------------------------------
-# Format extension
-# ---------------------------------------------------------------------------
-class ShieldConfigFormatter:
-    """Formats shield config and managed rule diffs for plan output."""
-
-    def format_text(self, plans: list, use_color: bool) -> list[str]:
-        from octorules._color import Pen
-
-        p = Pen(use_color)
-        lines: list[str] = []
-        for plan in plans:
-            if not isinstance(plan, ShieldConfigPlan) or not plan.has_changes:
-                continue
-            for change in plan.changes:
-                if not change.has_changes:
-                    continue
-                label = f"{change.section}.{change.field}"
-                line = f"  ~ {label}: {change.current!r} -> {change.desired!r}"
-                lines.append(p.warning(line))
-        return lines
-
-    def format_json(self, plans: list) -> list[dict]:
-        result: list[dict] = []
-        for plan in plans:
-            if not isinstance(plan, ShieldConfigPlan) or not plan.has_changes:
-                continue
-            changes = []
-            for change in plan.changes:
-                if not change.has_changes:
-                    continue
-                changes.append(
-                    {
-                        "section": change.section,
-                        "field": change.field,
-                        "current": change.current,
-                        "desired": change.desired,
-                    }
-                )
-            if changes:
-                result.append({"changes": changes})
-        return result
-
-    def format_markdown(
-        self, plans: list, pending_diffs: list[list[tuple[str, object, object]]]
-    ) -> list[str]:
-        # pending_diffs is unused: shield config changes are field-level
-        # (current -> desired) rather than rule-level diffs that accumulate
-        # into the pending_diffs structure.
-        from octorules.formatter import _md_escape
-
-        lines: list[str] = []
-        for plan in plans:
-            if not isinstance(plan, ShieldConfigPlan) or not plan.has_changes:
-                continue
-            for change in plan.changes:
-                if not change.has_changes:
-                    continue
-                label = _md_escape(f"{change.section}.{change.field}")
-                cur = _md_escape(repr(change.current))
-                des = _md_escape(repr(change.desired))
-                lines.append(f"| ~ | {label} | | {cur} -> {des} |")
-        return lines
-
-    def format_html(self, plans: list, lines: list[str]) -> tuple[int, int, int, int]:
-        from html import escape as html_escape
-
-        from octorules.formatter import _HTML_TABLE_HEADER, _html_summary_row
-
-        total_modifies = 0
-        for plan in plans:
-            if not isinstance(plan, ShieldConfigPlan) or not plan.has_changes:
-                continue
-            lines.extend(_HTML_TABLE_HEADER)
-            plan_modifies = 0
-            for change in plan.changes:
-                if not change.has_changes:
-                    continue
-                plan_modifies += 1
-                label = html_escape(f"{change.section}.{change.field}")
-                cur = html_escape(repr(change.current))
-                des = html_escape(repr(change.desired))
-                lines.append("  <tr>")
-                lines.append("    <td>Modify</td>")
-                lines.append(f"    <td>{label}</td>")
-                lines.append(f"    <td>{cur} &rarr; {des}</td>")
-                lines.append("  </tr>")
-            lines.extend(_html_summary_row(0, 0, plan_modifies, 0))
-            lines.append("</table>")
-            total_modifies += plan_modifies
-        return 0, 0, total_modifies, 0
-
-    def format_report(self, plans: list, zone_has_drift: bool, phases_data: list[dict]) -> bool:
-        total_modifies = 0
-        for plan in plans:
-            if not isinstance(plan, ShieldConfigPlan) or not plan.has_changes:
-                continue
-            total_modifies += sum(1 for c in plan.changes if c.has_changes)
-        if total_modifies:
-            zone_has_drift = True
-            phases_data.append(
-                {
-                    "phase": "shield_config",
-                    "provider_id": "bunny_shield_config",
-                    "status": "drifted",
-                    "yaml_rules": 0,
-                    "live_rules": 0,
-                    "adds": 0,
-                    "removes": 0,
-                    "modifies": total_modifies,
-                }
-            )
-        return zone_has_drift
-
-
-# ---------------------------------------------------------------------------
 # Validate extension
 # ---------------------------------------------------------------------------
-_VALID_EXECUTION_MODES = frozenset(STR_TO_EXECUTION_MODE)
-_VALID_SENSITIVITIES = frozenset(STR_TO_SENSITIVITY)
+_VALID_EXECUTION_MODES = frozenset(EXECUTION_MODE)
+_VALID_SENSITIVITIES = frozenset(SENSITIVITY)
 
 
 def _validate_shield_config(desired, zone_name, errors, lines):
@@ -457,6 +427,12 @@ def _validate_shield_config(desired, zone_name, errors, lines):
                     errors.append(
                         f"  {zone_name}/bunny_shield_config: invalid bot_detection.{key} {val!r}"
                     )
+            fa = bot.get("fingerprint_aggression")
+            if fa is not None and (not isinstance(fa, int) or isinstance(fa, bool)):
+                errors.append(
+                    f"  {zone_name}/bunny_shield_config: invalid"
+                    f" bot_detection.fingerprint_aggression {fa!r} (must be int)"
+                )
 
         ddos = config.get("ddos", {})
         if isinstance(ddos, dict):
@@ -476,6 +452,47 @@ def _validate_shield_config(desired, zone_name, errors, lines):
                     f"  {zone_name}/bunny_shield_config: invalid"
                     f" ddos.challenge_window {cw!r} (must be non-negative int)"
                 )
+
+        waf = config.get("waf", {})
+        if isinstance(waf, dict):
+            _pfx = f"  {zone_name}/bunny_shield_config: invalid waf"
+            for key in (
+                "enabled",
+                "learning_mode",
+                "whitelabel_response_pages",
+                "request_header_logging_enabled",
+                "realtime_threat_intelligence_enabled",
+            ):
+                val = waf.get(key)
+                if val is not None and not isinstance(val, bool):
+                    errors.append(f"{_pfx}.{key} {val!r} (must be bool)")
+            waf_em = waf.get("execution_mode", "")
+            if waf_em and waf_em not in ("log", "block"):
+                errors.append(f"{_pfx}.execution_mode {waf_em!r} (must be 'log' or 'block')")
+            for key in ("request_body_limit_action", "response_body_limit_action"):
+                val = waf.get(key)
+                if val is not None and (not isinstance(val, int) or isinstance(val, bool)):
+                    errors.append(f"{_pfx}.{key} {val!r} (must be int)")
+            pid = waf.get("profile_id")
+            if pid is not None and (not isinstance(pid, int) or isinstance(pid, bool)):
+                errors.append(f"{_pfx}.profile_id {pid!r} (must be int or null)")
+            ec = waf.get("engine_config")
+            if ec is not None and not isinstance(ec, list):
+                errors.append(f"{_pfx}.engine_config {ec!r} (must be list)")
+            igh = waf.get("request_ignored_headers")
+            if igh is not None and not isinstance(igh, list):
+                errors.append(f"{_pfx}.request_ignored_headers {igh!r} (must be list)")
+
+        us = config.get("upload_scanning", {})
+        if isinstance(us, dict):
+            _pfx = f"  {zone_name}/bunny_shield_config: invalid upload_scanning"
+            en = us.get("enabled")
+            if en is not None and not isinstance(en, bool):
+                errors.append(f"{_pfx}.enabled {en!r} (must be bool)")
+            for key in ("csam_scanning_mode", "antivirus_scanning_mode"):
+                val = us.get(key)
+                if val is not None and (not isinstance(val, int) or isinstance(val, bool)):
+                    errors.append(f"{_pfx}.{key} {val!r} (must be int)")
 
     managed = desired.get("bunny_waf_managed_rules")
     if isinstance(managed, dict):
@@ -508,8 +525,14 @@ def _dump_shield_config(scope, provider, out_dir):
         raise
     except ProviderError:
         bot_config = {}
+    try:
+        upload_config = provider.get_upload_scanning_config(scope)
+    except ProviderAuthError:
+        raise
+    except ProviderError:
+        upload_config = {}
 
-    config = normalize_shield_config(shield_zone, bot_config)
+    config = normalize_shield_config(shield_zone, bot_config, upload_config=upload_config or None)
     if config:
         result["bunny_shield_config"] = config
 
@@ -546,7 +569,7 @@ def register_shield_config() -> None:
     register_plan_zone_hook(_prefetch_shield_config, _finalize_shield_config)
     register_apply_extension("bunny_shield_config", _apply_shield_config)
     register_apply_extension("bunny_waf_managed_rules", _apply_managed_rules)
-    register_format_extension("bunny_shield_config", ShieldConfigFormatter())
-    register_format_extension("bunny_waf_managed_rules", ShieldConfigFormatter())
+    register_format_extension("bunny_shield_config", ConfigFormatter("bunny_shield_config"))
+    register_format_extension("bunny_waf_managed_rules", ConfigFormatter("bunny_waf_managed_rules"))
     register_validate_extension(_validate_shield_config)
     register_dump_extension(_dump_shield_config)

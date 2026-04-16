@@ -631,7 +631,7 @@ bunny_waf_rate_limit_rules:
 
 **Severity:** ERROR
 
-The `timeframe` must be one of: `1s`, `10s`, `1m`, `5m`, `15m`, `1h`. The free plan only supports up to `10s`. Also fires when the `timeframe` field is entirely missing from a rate limit rule.
+The `timeframe` must be one of: `1s`, `10s`, `1m`, `5m`, `15m`, `1h`. The Basic tier only supports up to `10s`. Also fires when the `timeframe` field is entirely missing from a rate limit rule.
 
 **Triggers on:**
 
@@ -1089,14 +1089,16 @@ Two or more rules in the same phase have identical condition sets. This may indi
 
 The number of rules exceeds known plan tier limits:
 
-| Plan | Custom WAF | Rate Limits |
-|------|:----------:|:-----------:|
-| Free | 0 | 2 |
-| Advanced | 10 | 10 |
+| Tier | Custom WAF | Rate Limits | Access Lists |
+|------|:----------:|:-----------:|:------------:|
+| Basic | 0 | 2 | 1 |
+| Advanced | 10 | 10 | 5 |
+| Business | 25 | 25 | 10 |
+| Enterprise | 50 | Unlimited | Unlimited |
 
-When `plan` is set in the provider config (e.g., `plan: advanced`), BN501 checks only against that tier's limits. When `plan` is not set, BN501 warns for the lowest tier exceeded (e.g., if you have 3 rate-limit rules, it warns that the Free tier limit of 2 is exceeded).
+The tier is auto-detected per-zone from the Shield API during zone resolution. When `plan` is set in the provider config, it serves as a fallback. When neither is available, BN501 warns for the lowest tier exceeded (e.g., if you have 3 rate-limit rules, it warns that the Basic tier limit of 2 is exceeded).
 
-**Fix:** Upgrade your plan or reduce rule count. If you know your account tier, set `plan` in the provider config to suppress warnings for higher tiers:
+**Fix:** Upgrade the zone's Shield tier or reduce rule count. You can also set `plan` in the provider config as a fallback:
 
 ```yaml
 providers:
