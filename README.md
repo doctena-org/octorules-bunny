@@ -22,12 +22,7 @@ providers:
     directory: ./rules
 
 zones:
-  my-blog:
-    sources:
-      - rules
-    targets:
-      - bunny
-  api-backend:
+  my-cdn:
     sources:
       - rules
     targets:
