@@ -11,6 +11,7 @@ BN004 = RuleMeta("BN004", "structure", "Unknown top-level rule field", Severity.
 BN005 = RuleMeta("BN005", "structure", "Rule field has wrong type", Severity.ERROR)
 BN006 = RuleMeta("BN006", "structure", "Rule entry is not a dict", Severity.ERROR)
 BN007 = RuleMeta("BN007", "structure", "Phase value is not a list", Severity.ERROR)
+BN009 = RuleMeta("BN009", "structure", "Duplicate ref across different phases", Severity.INFO)
 BN010 = RuleMeta("BN010", "structure", "Invalid ref format (must be [a-zA-Z0-9 ]+)", Severity.ERROR)
 BN011 = RuleMeta("BN011", "structure", "Description exceeds 255 characters", Severity.WARNING)
 
@@ -29,6 +30,9 @@ BN108 = RuleMeta(
     "BN108", "condition", "Catch-all condition (matches all traffic)", Severity.WARNING
 )
 BN109 = RuleMeta("BN109", "variable", "variable_value on unsupported variable", Severity.WARNING)
+BN119 = RuleMeta(
+    "BN119", "operator", "Regex starts with '.*' or '.+' (performance footgun)", Severity.INFO
+)
 
 # BN1xx — Variable sub-value validation
 BN115 = RuleMeta(
@@ -120,6 +124,35 @@ BN705 = RuleMeta("BN705", "edge_rule", "Invalid edge rule pattern_matching_type"
 BN706 = RuleMeta(
     "BN706", "edge_rule", "Edge rule action missing required parameter", Severity.ERROR
 )
+BN707 = RuleMeta(
+    "BN707", "edge_rule", "Edge rule trigger has empty/whitespace pattern", Severity.ERROR
+)
+BN708 = RuleMeta(
+    "BN708", "edge_rule", "Invalid country code in country_code trigger", Severity.ERROR
+)
+BN709 = RuleMeta("BN709", "edge_rule", "Invalid IP/CIDR in remote_ip trigger", Severity.ERROR)
+BN710 = RuleMeta(
+    "BN710", "edge_rule", "Invalid HTTP method in request_method trigger", Severity.ERROR
+)
+BN711 = RuleMeta(
+    "BN711",
+    "edge_rule",
+    "Status code out of range (100-900) in status_code trigger",
+    Severity.ERROR,
+)
+BN712 = RuleMeta("BN712", "edge_rule", "Malformed Lua pattern (pattern: prefix)", Severity.ERROR)
+BN713 = RuleMeta(
+    "BN713",
+    "edge_rule",
+    "URL trigger pattern must start with /, http, or *",
+    Severity.WARNING,
+)
+BN715 = RuleMeta(
+    "BN715",
+    "edge_rule",
+    "Redirect status code must be 300-399",
+    Severity.ERROR,
+)
 
 # BN6xx — Best practice
 BN600 = RuleMeta("BN600", "best_practice", "Very short rule name", Severity.INFO)
@@ -137,6 +170,7 @@ BN_RULE_METAS: tuple[RuleMeta, ...] = (
     BN005,
     BN006,
     BN007,
+    BN009,
     BN010,
     BN011,
     # BN1xx — Enum validation
@@ -150,6 +184,7 @@ BN_RULE_METAS: tuple[RuleMeta, ...] = (
     BN107,
     BN108,
     BN109,
+    BN119,
     # BN1xx — Variable sub-value
     BN115,
     BN116,
@@ -197,4 +232,12 @@ BN_RULE_METAS: tuple[RuleMeta, ...] = (
     BN704,
     BN705,
     BN706,
+    BN707,
+    BN708,
+    BN709,
+    BN710,
+    BN711,
+    BN712,
+    BN713,
+    BN715,
 )

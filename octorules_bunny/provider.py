@@ -490,9 +490,18 @@ class BunnyShieldProvider:
         pull_zones = self._pull_zones_cache
         matches = [pz for pz in pull_zones if pz.get("Name") == zone_name]
         if len(matches) == 0:
-            raise ConfigError(f"No pull zone found for {zone_name!r}")
+            available = sorted(pz["Name"] for pz in pull_zones if "Name" in pz)
+            hint = (
+                f" (available: {', '.join(available)})"
+                if available
+                else " (account has no pull zones)"
+            )
+            raise ConfigError(f"No pull zone found for {zone_name!r}{hint}")
         if len(matches) > 1:
-            raise ConfigError(f"Multiple pull zones found for {zone_name!r}")
+            ids = sorted(str(pz.get("Id", "?")) for pz in matches)
+            raise ConfigError(
+                f"Multiple pull zones found for {zone_name!r} (IDs: {', '.join(ids)})"
+            )
 
         pz = matches[0]
         pull_zone_id = pz["Id"]
@@ -530,8 +539,16 @@ class BunnyShieldProvider:
 
     @_wrap_provider_errors
     def list_zones(self) -> list[str]:
-        """List all pull zone names."""
-        pull_zones = self._client.list_pull_zones()
+        """List all pull zone names.
+
+        Uses the shared pull-zones cache populated by ``resolve_zone_id``
+        so back-to-back calls don't re-query the API.
+        """
+        if self._pull_zones_cache is None:
+            with self._lock:
+                if self._pull_zones_cache is None:
+                    self._pull_zones_cache = self._client.list_pull_zones()
+        pull_zones = self._pull_zones_cache
         log.debug("list_zones: %d pull zones", len(pull_zones))
         return [pz["Name"] for pz in pull_zones if "Name" in pz]
 
@@ -646,6 +663,10 @@ class BunnyShieldProvider:
         patched: list[str] = []
         added: list[str] = []
         removed: list[str] = []
+        # Access list creates defer their config update so we can batch the
+        # configurationId lookup at the end (one list_access_lists call instead
+        # of one per created list).
+        pending_al_configs: list[tuple[int, dict]] = []
 
         try:
             # 1. Patch existing
@@ -664,8 +685,12 @@ class BunnyShieldProvider:
             for ref, new_rule in new_by_ref.items():
                 if ref not in old_by_ref:
                     payload = self._denormalize(new_rule, provider_id, sz)
-                    self._create_rule(provider_id, sz, payload)
+                    self._create_rule(provider_id, sz, payload, pending_al_configs)
                     added.append(ref)
+
+            # 2b. Batch access-list config updates: one lookup for all new lists.
+            if pending_al_configs:
+                self._flush_access_list_configs(sz, pending_al_configs)
 
             # 3. Remove stale
             for ref in old_by_ref:
@@ -742,40 +767,71 @@ class BunnyShieldProvider:
             return _denormalize_edge_rule(rule)
         raise ProviderError(f"Unknown provider_id: {provider_id!r}")
 
-    def _create_rule(self, provider_id: str, sz: int, payload: dict) -> None:
+    def _create_rule(
+        self,
+        provider_id: str,
+        sz: int,
+        payload: dict,
+        pending_al_configs: list[tuple[int, dict]] | None = None,
+    ) -> None:
+        """Create a rule.
+
+        For access lists, the API requires a second call to set
+        ``action``/``enabled`` — but that call needs the ``configurationId``
+        which is only discoverable via ``list_access_lists``.  Rather than
+        looking it up after every create (N+1 problem), we defer these
+        into *pending_al_configs* and the caller flushes them in a single
+        batch via ``_flush_access_list_configs``.
+        """
         if provider_id == "bunny_waf_custom":
             self._client.create_custom_waf_rule(payload)
         elif provider_id == "bunny_waf_rate_limit":
             self._client.create_rate_limit(payload)
         elif provider_id == "bunny_waf_access_list":
-            # Two-step: create the list, then configure action/enabled.
             create_payload = _denormalize_access_list_create(payload)
             resp = _unwrap_data(self._client.create_access_list(sz, create_payload))
             list_id = resp.get("id")
-            if list_id:
-                # Fetch the list details to get the configurationId.
-                summaries = self._client.list_access_lists(sz)
-                config_id = None
-                for s in summaries:
-                    if s.get("listId") == list_id:
-                        config_id = s.get("configurationId")
-                        break
-                if config_id:
-                    try:
-                        config_payload = _denormalize_access_list_config(payload)
-                        self._client.update_access_list_config(sz, config_id, config_payload)
-                    except (BunnyAPIError, BunnyAuthError) as exc:
-                        log.warning(
-                            "Access list %s created but config update failed "
-                            "(partial state — action/enabled may be wrong): %s",
-                            list_id,
-                            exc,
-                        )
-                        raise
+            if list_id is not None and pending_al_configs is not None:
+                # Defer the config update — caller will batch via _flush_access_list_configs.
+                pending_al_configs.append((list_id, payload))
         elif provider_id == "bunny_edge_rule":
             self._client.create_or_update_edge_rule(sz, payload)
         else:
             raise ProviderError(f"Cannot create rule: unknown provider_id {provider_id!r}")
+
+    def _flush_access_list_configs(self, sz: int, pending: list[tuple[int, dict]]) -> None:
+        """Apply deferred access-list config updates in a batch.
+
+        Performs ONE ``list_access_lists`` lookup to resolve all new
+        list IDs to their ``configurationId``, then issues the config
+        updates.
+        """
+        summaries = self._client.list_access_lists(sz)
+        config_id_by_list_id: dict[int, int] = {
+            s["listId"]: s["configurationId"]
+            for s in summaries
+            if "listId" in s and "configurationId" in s
+        }
+        for list_id, payload in pending:
+            config_id = config_id_by_list_id.get(list_id)
+            if config_id is None:
+                log.warning(
+                    "Access list %s created but configurationId not found "
+                    "in follow-up lookup — config update skipped (partial state)",
+                    list_id,
+                )
+                continue
+            try:
+                config_payload = _denormalize_access_list_config(payload)
+                self._client.update_access_list_config(sz, config_id, config_payload)
+            except (BunnyAPIError, BunnyAuthError) as exc:
+                log.warning(
+                    "Access list %s created but config update failed "
+                    "(partial state — action/enabled may be wrong): %s",
+                    list_id,
+                    exc,
+                )
+                raise
 
     def _update_rule(self, provider_id: str, sz: int, api_id: int | str, payload: dict) -> None:
         if provider_id == "bunny_waf_custom":
@@ -848,12 +904,8 @@ class BunnyShieldProvider:
     def get_managed_access_lists(self, scope: Scope) -> list[dict]:
         """Fetch the managed (curated) access lists for a shield zone."""
         sz = _shield_zone_id(scope)
-        # list_access_lists returns customLists only — we need the raw
-        # response to get managedLists from the full endpoint.
-        raw = self._client._request("GET", f"/shield/shield-zone/{sz}/access-lists")
-        if isinstance(raw, dict):
-            return raw.get("managedLists", [])
-        return []
+        raw = self._client.list_access_lists_full(sz)
+        return raw.get("managedLists", [])
 
     @_wrap_provider_errors
     def update_curated_list_config(self, scope: Scope, config_id: int, payload: dict) -> dict:

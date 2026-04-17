@@ -16,6 +16,8 @@ from octorules_bunny._shield_config import (
     denormalize_bot_config,
     denormalize_ddos_config,
     denormalize_managed_rules,
+    denormalize_upload_scanning,
+    denormalize_waf_settings,
     diff_managed_rules,
     diff_shield_config,
     normalize_managed_rules,
@@ -716,3 +718,359 @@ class TestDumpExtension:
         assert result is not None
         assert "bunny_shield_config" in result
         assert "waf" in result["bunny_shield_config"]
+
+
+# ---------------------------------------------------------------------------
+# WAF section (learning mode, body limits, whitelabel, global switches)
+# ---------------------------------------------------------------------------
+class TestNormalizeWafSettings:
+    def test_waf_settings_from_shield_zone(self):
+        shield_zone = {
+            "learningMode": True,
+            "learningModeUntil": "2026-04-22T14:26:16",
+            "wafRequestBodyLimitAction": 1,
+            "wafResponseBodyLimitAction": 2,
+            "whitelabelResponsePages": True,
+            "wafRequestHeaderLoggingEnabled": True,
+            "wafRequestIgnoredHeaders": ["Authorization", "Cookie"],
+            "dDoSShieldSensitivity": 2,  # should not leak into waf section
+        }
+        result = normalize_shield_config(shield_zone, {})
+        waf = result["waf"]
+        assert waf["learning_mode"] is True
+        assert waf["learning_mode_until"] == "2026-04-22T14:26:16"
+        assert waf["request_body_limit_action"] == 1
+        assert waf["response_body_limit_action"] == 2
+        assert waf["whitelabel_response_pages"] is True
+        assert waf["request_header_logging_enabled"] is True
+        assert waf["request_ignored_headers"] == ["Authorization", "Cookie"]
+
+    def test_waf_settings_defaults(self):
+        """Shield zone with no WAF-specific fields still produces waf section."""
+        result = normalize_shield_config({}, {})
+        waf = result.get("waf", {})
+        assert waf.get("learning_mode") is False
+        assert waf.get("request_body_limit_action") == 0
+        assert waf.get("whitelabel_response_pages") is False
+
+    def test_learning_mode_false(self):
+        shield_zone = {"learningMode": False, "learningModeUntil": "2026-04-15T00:00:00"}
+        result = normalize_shield_config(shield_zone, {})
+        assert result["waf"]["learning_mode"] is False
+
+    def test_normalize_includes_global_waf_fields(self):
+        shield_zone = {
+            "wafEnabled": True,
+            "wafExecutionMode": 1,
+            "wafRealtimeThreatIntelligenceEnabled": True,
+            "wafProfileId": 2,
+            "wafEngineConfig": [{"name": "allowed_methods", "valueEncoded": "GET POST"}],
+        }
+        result = normalize_shield_config(shield_zone, {})
+        waf = result["waf"]
+        assert waf["enabled"] is True
+        assert waf["execution_mode"] == "block"
+        assert waf["realtime_threat_intelligence_enabled"] is True
+        assert waf["profile_id"] == 2
+        assert waf["engine_config"] == [{"name": "allowed_methods", "valueEncoded": "GET POST"}]
+
+    def test_normalize_global_waf_defaults(self):
+        result = normalize_shield_config({}, {})
+        waf = result["waf"]
+        assert waf["enabled"] is False
+        assert waf["execution_mode"] == "log"
+        assert waf["realtime_threat_intelligence_enabled"] is False
+        assert waf["profile_id"] is None
+        assert waf["engine_config"] == []
+
+
+class TestDenormalizeWafSettings:
+    def test_round_trip_fields(self):
+        config = {
+            "learning_mode": False,
+            "request_body_limit_action": 2,
+            "response_body_limit_action": 1,
+            "whitelabel_response_pages": True,
+            "request_header_logging_enabled": False,
+            "request_ignored_headers": ["Authorization"],
+        }
+        result = denormalize_waf_settings(config)
+        assert result["learningMode"] is False
+        assert result["wafRequestBodyLimitAction"] == 2
+        assert result["wafResponseBodyLimitAction"] == 1
+        assert result["whitelabelResponsePages"] is True
+        assert result["wafRequestHeaderLoggingEnabled"] is False
+        assert result["wafRequestIgnoredHeaders"] == ["Authorization"]
+
+    def test_partial_config(self):
+        """Only present keys are denormalized."""
+        config = {"whitelabel_response_pages": True}
+        result = denormalize_waf_settings(config)
+        assert result == {"whitelabelResponsePages": True}
+        assert "learningMode" not in result
+
+    def test_learning_mode_until_excluded(self):
+        """learning_mode_until is read-only — should not be denormalized."""
+        config = {"learning_mode": True, "learning_mode_until": "2026-04-22T00:00:00"}
+        result = denormalize_waf_settings(config)
+        assert "learningMode" in result
+        assert "learningModeUntil" not in result
+
+    def test_denormalize_global_waf_fields(self):
+        config = {
+            "enabled": False,
+            "execution_mode": "block",
+            "realtime_threat_intelligence_enabled": True,
+            "profile_id": 2,
+            "engine_config": [{"name": "allowed_methods", "valueEncoded": "GET POST PUT"}],
+        }
+        result = denormalize_waf_settings(config)
+        assert result["wafEnabled"] is False
+        assert result["wafExecutionMode"] == 1
+        assert result["wafRealtimeThreatIntelligenceEnabled"] is True
+        assert result["wafProfileId"] == 2
+        assert result["wafEngineConfig"] == [
+            {"name": "allowed_methods", "valueEncoded": "GET POST PUT"}
+        ]
+
+    def test_denormalize_partial_only_enabled(self):
+        result = denormalize_waf_settings({"enabled": True})
+        assert result == {"wafEnabled": True}
+
+
+# ---------------------------------------------------------------------------
+# Upload scanning section
+# ---------------------------------------------------------------------------
+class TestNormalizeUploadScanning:
+    def test_upload_scanning_from_api(self):
+        upload_config = {
+            "shieldZoneId": 123,
+            "isEnabled": True,
+            "csamScanningMode": 1,
+            "antivirusScanningMode": 1,
+        }
+        result = normalize_shield_config({}, {}, upload_config=upload_config)
+        us = result["upload_scanning"]
+        assert us["enabled"] is True
+        assert us["csam_scanning_mode"] == 1
+        assert us["antivirus_scanning_mode"] == 1
+
+    def test_upload_scanning_disabled(self):
+        upload_config = {"isEnabled": False, "csamScanningMode": 0, "antivirusScanningMode": 0}
+        result = normalize_shield_config({}, {}, upload_config=upload_config)
+        us = result["upload_scanning"]
+        assert us["enabled"] is False
+        assert us["csam_scanning_mode"] == 0
+
+    def test_upload_scanning_absent(self):
+        """When no upload config is provided, no upload_scanning section."""
+        result = normalize_shield_config({}, {})
+        assert "upload_scanning" not in result
+
+
+class TestDenormalizeUploadScanning:
+    def test_round_trip(self):
+        config = {"enabled": True, "csam_scanning_mode": 1, "antivirus_scanning_mode": 1}
+        result = denormalize_upload_scanning(config)
+        assert result["isEnabled"] is True
+        assert result["csamScanningMode"] == 1
+        assert result["antivirusScanningMode"] == 1
+
+    def test_partial(self):
+        result = denormalize_upload_scanning({"enabled": False})
+        assert result == {"isEnabled": False}
+
+
+# ---------------------------------------------------------------------------
+# Bot detection aggression field
+# ---------------------------------------------------------------------------
+class TestBotDetectionAggression:
+    def test_normalize_includes_aggression(self):
+        bot_config = {
+            "executionMode": 1,
+            "browserFingerprint": {"sensitivity": 2, "aggression": 3, "complexEnabled": True},
+            "requestIntegrity": {"sensitivity": 0},
+            "ipAddress": {"sensitivity": 0},
+        }
+        result = normalize_shield_config({}, bot_config)
+        assert result["bot_detection"]["fingerprint_aggression"] == 3
+
+    def test_normalize_aggression_default(self):
+        bot_config = {
+            "executionMode": 0,
+            "browserFingerprint": {"sensitivity": 0},
+            "requestIntegrity": {"sensitivity": 0},
+            "ipAddress": {"sensitivity": 0},
+        }
+        result = normalize_shield_config({}, bot_config)
+        assert result["bot_detection"]["fingerprint_aggression"] == 1
+
+    def test_denormalize_includes_aggression(self):
+        config = {
+            "fingerprint_sensitivity": "high",
+            "fingerprint_aggression": 3,
+            "complex_fingerprinting": True,
+        }
+        result = denormalize_bot_config(config)
+        bf = result["browserFingerprint"]
+        assert bf["aggression"] == 3
+        assert bf["sensitivity"] == 3
+        assert bf["complexEnabled"] is True
+
+    def test_denormalize_without_aggression(self):
+        config = {"fingerprint_sensitivity": "low"}
+        result = denormalize_bot_config(config)
+        bf = result["browserFingerprint"]
+        assert bf["sensitivity"] == 1
+        assert "aggression" not in bf
+
+
+# ---------------------------------------------------------------------------
+# Diff: waf + upload_scanning sections
+# ---------------------------------------------------------------------------
+class TestDiffNewSections:
+    def test_waf_diff_detects_changes(self):
+        current = {
+            "waf": {
+                "learning_mode": True,
+                "request_body_limit_action": 1,
+                "whitelabel_response_pages": False,
+            }
+        }
+        desired = {
+            "waf": {
+                "learning_mode": False,
+                "request_body_limit_action": 2,
+                "whitelabel_response_pages": True,
+            }
+        }
+        plan = diff_shield_config(current, desired)
+        assert plan.has_changes
+        waf_changes = [c for c in plan.changes if c.section == "waf"]
+        assert len(waf_changes) == 3
+
+    def test_upload_scanning_diff(self):
+        current = {"upload_scanning": {"enabled": False, "csam_scanning_mode": 0}}
+        desired = {"upload_scanning": {"enabled": True, "csam_scanning_mode": 1}}
+        plan = diff_shield_config(current, desired)
+        assert plan.has_changes
+        us_changes = [c for c in plan.changes if c.section == "upload_scanning"]
+        assert len(us_changes) == 2
+
+    def test_no_changes_when_identical(self):
+        config = {"waf": {"learning_mode": True}, "upload_scanning": {"enabled": False}}
+        plan = diff_shield_config(config, config)
+        assert not plan.has_changes
+
+
+# ---------------------------------------------------------------------------
+# Validation: waf / upload_scanning / aggression
+# ---------------------------------------------------------------------------
+class TestValidateWafAndUploadScanning:
+    def test_valid_waf_config(self):
+        desired = {
+            "bunny_shield_config": {
+                "waf": {
+                    "learning_mode": True,
+                    "request_body_limit_action": 1,
+                    "response_body_limit_action": 2,
+                    "whitelabel_response_pages": False,
+                    "request_header_logging_enabled": True,
+                    "request_ignored_headers": ["Authorization"],
+                }
+            }
+        }
+        errors: list[str] = []
+        _validate_shield_config(desired, "zone", errors, [])
+        assert errors == []
+
+    def test_invalid_waf_learning_mode_type(self):
+        desired = {"bunny_shield_config": {"waf": {"learning_mode": "yes"}}}
+        errors: list[str] = []
+        _validate_shield_config(desired, "zone", errors, [])
+        assert len(errors) == 1
+        assert "learning_mode" in errors[0]
+
+    def test_invalid_body_limit_type(self):
+        desired = {"bunny_shield_config": {"waf": {"request_body_limit_action": "big"}}}
+        errors: list[str] = []
+        _validate_shield_config(desired, "zone", errors, [])
+        assert len(errors) == 1
+        assert "request_body_limit_action" in errors[0]
+
+    def test_invalid_ignored_headers_type(self):
+        desired = {"bunny_shield_config": {"waf": {"request_ignored_headers": "Authorization"}}}
+        errors: list[str] = []
+        _validate_shield_config(desired, "zone", errors, [])
+        assert len(errors) == 1
+        assert "request_ignored_headers" in errors[0]
+
+    def test_valid_upload_scanning(self):
+        desired = {
+            "bunny_shield_config": {
+                "upload_scanning": {
+                    "enabled": True,
+                    "csam_scanning_mode": 1,
+                    "antivirus_scanning_mode": 0,
+                }
+            }
+        }
+        errors: list[str] = []
+        _validate_shield_config(desired, "zone", errors, [])
+        assert errors == []
+
+    def test_invalid_upload_scanning_mode_type(self):
+        desired = {"bunny_shield_config": {"upload_scanning": {"csam_scanning_mode": "on"}}}
+        errors: list[str] = []
+        _validate_shield_config(desired, "zone", errors, [])
+        assert len(errors) == 1
+        assert "csam_scanning_mode" in errors[0]
+
+    def test_valid_global_waf_fields(self):
+        desired = {
+            "bunny_shield_config": {
+                "waf": {
+                    "enabled": True,
+                    "execution_mode": "block",
+                    "realtime_threat_intelligence_enabled": False,
+                    "profile_id": 2,
+                }
+            }
+        }
+        errors: list[str] = []
+        _validate_shield_config(desired, "zone", errors, [])
+        assert errors == []
+
+    def test_invalid_waf_execution_mode(self):
+        desired = {"bunny_shield_config": {"waf": {"execution_mode": "nuke"}}}
+        errors: list[str] = []
+        _validate_shield_config(desired, "zone", errors, [])
+        assert len(errors) == 1
+        assert "execution_mode" in errors[0]
+
+    def test_invalid_profile_id_type(self):
+        desired = {"bunny_shield_config": {"waf": {"profile_id": "general"}}}
+        errors: list[str] = []
+        _validate_shield_config(desired, "zone", errors, [])
+        assert len(errors) == 1
+        assert "profile_id" in errors[0]
+
+    def test_invalid_engine_config_type(self):
+        desired = {"bunny_shield_config": {"waf": {"engine_config": "bad"}}}
+        errors: list[str] = []
+        _validate_shield_config(desired, "zone", errors, [])
+        assert len(errors) == 1
+        assert "engine_config" in errors[0]
+
+    def test_valid_aggression(self):
+        desired = {"bunny_shield_config": {"bot_detection": {"fingerprint_aggression": 2}}}
+        errors: list[str] = []
+        _validate_shield_config(desired, "zone", errors, [])
+        assert errors == []
+
+    def test_invalid_aggression_type(self):
+        desired = {"bunny_shield_config": {"bot_detection": {"fingerprint_aggression": "high"}}}
+        errors: list[str] = []
+        _validate_shield_config(desired, "zone", errors, [])
+        assert len(errors) == 1
+        assert "fingerprint_aggression" in errors[0]

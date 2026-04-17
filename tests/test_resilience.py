@@ -66,15 +66,11 @@ class TestAccessListCreateResilience:
     """Access list create should log when config update step fails."""
 
     def test_config_update_failure_logs_warning(self, caplog):
-        """When list is created but config update fails, a warning should appear."""
+        """When config update fails in the batched flush, a warning should appear."""
         from octorules_bunny.provider import BunnyShieldProvider
 
         mock_client = MagicMock()
-        # create_access_list succeeds and returns an id
-        mock_client.create_access_list.return_value = {"data": {"id": 42}}
-        # list_access_lists returns the new list with a configurationId
         mock_client.list_access_lists.return_value = [{"listId": 42, "configurationId": 99}]
-        # config update fails
         mock_client.update_access_list_config.side_effect = BunnyAPIError("Config failed")
 
         provider = BunnyShieldProvider(client=mock_client)
@@ -82,16 +78,35 @@ class TestAccessListCreateResilience:
 
         with caplog.at_level(logging.WARNING, logger="octorules_bunny.provider"):
             try:
-                provider._create_rule(
-                    "bunny_waf_access_list", 10, {"ref": "test", "action": "block", "type": "ip"}
+                provider._flush_access_list_configs(
+                    10, [(42, {"ref": "test", "action": "block", "type": "ip"})]
                 )
             except BunnyAPIError:
-                pass  # expected if not caught
+                pass  # expected — re-raised after logging
 
-        # Should have logged a warning about partial state
         assert any(
             "partial" in r.message.lower() or "config" in r.message.lower() for r in caplog.records
         )
+
+    def test_missing_config_id_logs_warning(self, caplog):
+        """When list_access_lists doesn't find the new listId, warn and skip."""
+        from octorules_bunny.provider import BunnyShieldProvider
+
+        mock_client = MagicMock()
+        # listId 42 not in the returned summaries
+        mock_client.list_access_lists.return_value = [{"listId": 99, "configurationId": 123}]
+
+        provider = BunnyShieldProvider(client=mock_client)
+        provider._zone_meta["10"] = {"pull_zone_id": 100, "name": "test-zone"}
+
+        with caplog.at_level(logging.WARNING, logger="octorules_bunny.provider"):
+            provider._flush_access_list_configs(
+                10, [(42, {"ref": "test", "action": "block", "type": "ip"})]
+            )
+
+        # update_access_list_config should NOT have been called
+        mock_client.update_access_list_config.assert_not_called()
+        assert any("configurationId" in r.message for r in caplog.records)
 
 
 class TestAccessListFetchResilience:

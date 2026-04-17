@@ -456,12 +456,25 @@ class TestAPIMethods:
         client.close()
 
     @patch.object(BunnyShieldClient, "_request")
-    def test_list_access_lists_fallback_list(self, mock_request):
-        """Handle unexpected flat list response gracefully."""
+    def test_list_access_lists_handles_non_dict_response(self, mock_request):
+        """API contract is a dict with customLists/managedLists — non-dict → []."""
         mock_request.return_value = [{"id": 1}]
         client = BunnyShieldClient("key")
         result = client.list_access_lists(42)
-        assert result == [{"id": 1}]
+        assert result == []
+        client.close()
+
+    @patch.object(BunnyShieldClient, "_request")
+    def test_list_access_lists_full_returns_raw_dict(self, mock_request):
+        """list_access_lists_full returns both managed and custom lists."""
+        mock_request.return_value = {
+            "customLists": [{"listId": 1}],
+            "managedLists": [{"listId": 2}, {"listId": 3}],
+        }
+        client = BunnyShieldClient("key")
+        full = client.list_access_lists_full(42)
+        assert len(full["customLists"]) == 1
+        assert len(full["managedLists"]) == 2
         client.close()
 
     @patch.object(BunnyShieldClient, "_request")

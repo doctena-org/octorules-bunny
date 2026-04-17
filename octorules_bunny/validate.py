@@ -45,6 +45,7 @@ RULE_IDS: frozenset[str] = frozenset(
         "BN107",
         "BN108",
         "BN109",
+        "BN119",
         "BN115",
         "BN116",
         "BN117",
@@ -80,6 +81,14 @@ RULE_IDS: frozenset[str] = frozenset(
         "BN704",
         "BN705",
         "BN706",
+        "BN707",
+        "BN708",
+        "BN709",
+        "BN710",
+        "BN711",
+        "BN712",
+        "BN713",
+        "BN715",
     }
 )
 
@@ -185,6 +194,44 @@ def _condition_key(cond: dict) -> tuple[str, str, str, str]:
         str(cond.get("value", "")),
         str(cond.get("variable_value", "")),
     )
+
+
+# Standard HTTP methods accepted by edge rule request_method triggers.
+_HTTP_METHODS = frozenset(
+    {"GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "CONNECT", "TRACE"}
+)
+
+
+def _check_lua_pattern(pattern: str) -> str | None:
+    """Validate a Lua pattern (without the 'pattern:' prefix).
+
+    Returns an error message if malformed, else None.  Lua patterns use
+    a simplified syntax (not PCRE): ``%a %d %w`` classes, ``[abc]``
+    character sets, ``+ * -`` repeaters, and ``%`` as the escape
+    character.
+    """
+    if not pattern:
+        return "empty pattern body after 'pattern:' prefix"
+    # Check for unclosed character sets
+    i = 0
+    n = len(pattern)
+    while i < n:
+        ch = pattern[i]
+        if ch == "%":
+            # Escape must be followed by a character
+            if i == n - 1:
+                return "trailing '%' escape with no following character"
+            i += 2
+            continue
+        if ch == "[":
+            # Find the closing bracket (Lua doesn't allow nested brackets)
+            close = pattern.find("]", i + 1)
+            if close == -1:
+                return "unclosed '[' character set"
+            i = close + 1
+            continue
+        i += 1
+    return None
 
 
 def _is_private_ip(addr_str: str) -> str | None:
@@ -298,6 +345,23 @@ def _validate_condition(
                         field="value",
                     )
                 )
+            # BN119: leading .* / .+ (performance footgun)
+            # Skip if it's a known catch-all pattern (BN108 covers those).
+            if isinstance(pattern, str) and pattern not in (".*", "^.*$", ".+"):
+                if pattern.startswith((".*", ".+")):
+                    results.append(
+                        _result(
+                            "BN119",
+                            Severity.INFO,
+                            f"{prefix}: regex starts with {pattern[:2]!r} — "
+                            "unanchored regex already matches anywhere, this prefix is "
+                            "redundant and hurts performance",
+                            phase,
+                            ref,
+                            field="value",
+                            suggestion="Remove the leading '.*' or '.+'",
+                        )
+                    )
 
     # BN107: Numeric operators on non-numeric variables
     if (
@@ -1132,6 +1196,24 @@ def _validate_edge_rule(rule: dict, results: list[LintResult], phase: str) -> No
                 )
             )
 
+        # BN715: redirect status code must be 300-399
+        if action_type == "redirect" and not p2_empty and isinstance(param2, str):
+            try:
+                code = int(param2)
+                if code < 300 or code >= 400:
+                    raise ValueError("not a 3xx")
+            except (ValueError, TypeError):
+                results.append(
+                    _result(
+                        "BN715",
+                        Severity.ERROR,
+                        f"Redirect status code {param2!r} must be an integer in 300-399",
+                        phase,
+                        ref,
+                        field="action_parameter_2",
+                    )
+                )
+
     # BN703: invalid trigger_matching_type
     tmt = rule.get("trigger_matching_type", "")
     if tmt and isinstance(tmt, str) and tmt not in EDGE_TRIGGER_MATCH:
@@ -1223,6 +1305,117 @@ def _validate_edge_rule(rule: dict, results: list[LintResult], phase: str) -> No
                     suggestion=f"Valid: {sorted(EDGE_PATTERN_MATCH)}",
                 )
             )
+
+        # BN707-BN712: per-pattern content validation
+        if isinstance(patterns, list):
+            for pi, p in enumerate(patterns):
+                if not isinstance(p, str):
+                    continue
+                p_prefix = f"{prefix}.pattern_matches[{pi}]"
+
+                # BN707: empty or whitespace-only
+                if not p.strip():
+                    results.append(
+                        _result(
+                            "BN707",
+                            Severity.ERROR,
+                            f"{p_prefix}: empty or whitespace-only pattern",
+                            phase,
+                            ref,
+                            field="triggers",
+                        )
+                    )
+                    continue  # skip further checks on empty patterns
+
+                # BN712: Lua pattern validation (pattern: prefix)
+                if p.startswith("pattern:"):
+                    err = _check_lua_pattern(p[len("pattern:") :])
+                    if err:
+                        results.append(
+                            _result(
+                                "BN712",
+                                Severity.ERROR,
+                                f"{p_prefix}: malformed Lua pattern — {err}",
+                                phase,
+                                ref,
+                                field="triggers",
+                            )
+                        )
+                    continue  # Lua patterns bypass per-type checks below
+
+                # Per-trigger-type validation (only for literal patterns)
+                if ttype == "url":
+                    # BN713: URL patterns must start with /, http, or *
+                    if not (p.startswith("/") or p.startswith("http") or p.startswith("*")):
+                        results.append(
+                            _result(
+                                "BN713",
+                                Severity.WARNING,
+                                f"{p_prefix}: URL pattern {p!r} should start with "
+                                "'/', 'http', or '*' — patterns without these prefixes "
+                                "will not match any URL",
+                                phase,
+                                ref,
+                                field="triggers",
+                            )
+                        )
+                elif ttype == "country_code":
+                    if not _COUNTRY_CODE_RE.fullmatch(p):
+                        results.append(
+                            _result(
+                                "BN708",
+                                Severity.ERROR,
+                                f"{p_prefix}: invalid country code {p!r}"
+                                f" (expected 2 uppercase letters)",
+                                phase,
+                                ref,
+                                field="triggers",
+                            )
+                        )
+                elif ttype == "remote_ip":
+                    try:
+                        ipaddress.ip_network(p, strict=False)
+                    except ValueError:
+                        results.append(
+                            _result(
+                                "BN709",
+                                Severity.ERROR,
+                                f"{p_prefix}: invalid IP or CIDR {p!r}",
+                                phase,
+                                ref,
+                                field="triggers",
+                            )
+                        )
+                elif ttype == "request_method":
+                    if p not in _HTTP_METHODS:
+                        results.append(
+                            _result(
+                                "BN710",
+                                Severity.ERROR,
+                                f"{p_prefix}: invalid HTTP method {p!r}"
+                                f" (valid: {sorted(_HTTP_METHODS)})",
+                                phase,
+                                ref,
+                                field="triggers",
+                            )
+                        )
+                elif ttype == "status_code":
+                    try:
+                        code = int(p)
+                        if code < 100 or code > 900:
+                            raise ValueError("out of range")
+                    except (ValueError, TypeError):
+                        results.append(
+                            _result(
+                                "BN711",
+                                Severity.ERROR,
+                                f"{p_prefix}: status code {p!r} must be"
+                                f" an integer between 100 and 900",
+                                phase,
+                                ref,
+                                field="triggers",
+                            )
+                        )
 
     # BN601: missing description
     if not rule.get("description", ""):

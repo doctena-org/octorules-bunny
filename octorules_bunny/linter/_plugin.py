@@ -14,6 +14,7 @@ from octorules_bunny.validate import _condition_key, validate_rules
 _PLUGIN_RULE_IDS: frozenset[str] = frozenset(
     {
         "BN007",
+        "BN009",
         "BN500",
         "BN501",
         "BN502",
@@ -103,6 +104,40 @@ def _check_duplicate_conditions(rules_data: dict[str, Any], ctx: LintContext) ->
                         phase=phase_name,
                     )
                 )
+
+
+def _check_cross_phase_dup_refs(rules_data: dict[str, Any], ctx: LintContext) -> None:
+    """BN009: Detect duplicate refs across different Bunny phases.
+
+    A ref can legitimately be unique within a phase (BN002 catches
+    within-phase dupes) but collide with a rule of the same name in a
+    different phase.  The API doesn't reject this, but it confuses
+    humans reading configs and audit logs.
+    """
+    # Collect (ref, phase) pairs across all Bunny phases.
+    ref_to_phases: dict[str, list[str]] = {}
+    for phase_name, rules in _iter_phases(rules_data, ctx):
+        for rule in rules:
+            if not isinstance(rule, dict):
+                continue
+            ref = str(rule.get("ref", ""))
+            if not ref:
+                continue
+            ref_to_phases.setdefault(ref, []).append(phase_name)
+
+    for ref, phases in ref_to_phases.items():
+        # Deduplicate — a ref appearing twice in one phase is BN002.
+        unique = sorted(set(phases))
+        if len(unique) > 1:
+            ctx.add(
+                LintResult(
+                    rule_id="BN009",
+                    severity=Severity.INFO,
+                    message=(f"Ref {ref!r} appears in multiple phases: {', '.join(unique)}"),
+                    phase=unique[0],
+                    ref=ref,
+                )
+            )
 
 
 def _check_plan_tier_limits(rules_data: dict[str, Any], ctx: LintContext) -> None:
@@ -310,6 +345,7 @@ def bunny_lint(rules_data: dict[str, Any], ctx: LintContext) -> None:
 
     # Cross-phase checks
     _check_duplicate_conditions(rules_data, ctx)
+    _check_cross_phase_dup_refs(rules_data, ctx)
     _check_plan_tier_limits(rules_data, ctx)
     _check_conflicting_access_lists(rules_data, ctx)
     _check_unreachable_rules(rules_data, ctx)

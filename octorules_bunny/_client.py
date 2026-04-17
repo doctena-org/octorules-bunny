@@ -255,17 +255,24 @@ class BunnyShieldClient:
 
     # -- Access Lists -------------------------------------------------------
 
+    def list_access_lists_full(self, shield_zone_id: int) -> dict:
+        """Fetch the full access-lists response (both managed and custom).
+
+        Returns ``{"managedLists": [...], "customLists": [...], ...}``.
+        Use ``list_access_lists()`` when you only need custom lists.
+        """
+        body = self._request("GET", f"/shield/shield-zone/{shield_zone_id}/access-lists")
+        return body if isinstance(body, dict) else {}
+
     def list_access_lists(self, shield_zone_id: int) -> list[dict]:
         """List all custom access lists for a shield zone.
 
         The API returns ``{managedLists: [...], customLists: [...]}``
-        (not paginated).  We only return ``customLists`` — managed lists
-        are Bunny-maintained and not user-editable.
+        (not paginated).  We only return ``customLists`` — for managed
+        lists use ``list_access_lists_full()``.
         """
-        body = self._request("GET", f"/shield/shield-zone/{shield_zone_id}/access-lists")
-        if isinstance(body, dict):
-            return body.get("customLists") or []
-        return body if isinstance(body, list) else []
+        body = self.list_access_lists_full(shield_zone_id)
+        return body.get("customLists") or []
 
     def get_access_list(self, shield_zone_id: int, list_id: int) -> dict:
         """Fetch a single custom access list (includes content)."""

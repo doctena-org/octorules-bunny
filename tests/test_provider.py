@@ -128,13 +128,29 @@ class TestResolveZoneId:
         with pytest.raises(Exception, match="No pull zone found"):
             provider.resolve_zone_id("missing")
 
+    def test_not_found_hint_lists_available_zones(self, mock_bunny_client):
+        """Typo in zone name gets a hint with existing zones."""
+        mock_bunny_client.list_pull_zones.return_value = [
+            {"Id": 1, "Name": "my-blog"},
+            {"Id": 2, "Name": "api-backend"},
+        ]
+        provider = BunnyShieldProvider(client=mock_bunny_client, api_key="k")
+        with pytest.raises(Exception, match="available: api-backend, my-blog"):
+            provider.resolve_zone_id("my-blogg")
+
+    def test_not_found_hint_when_account_empty(self, mock_bunny_client):
+        mock_bunny_client.list_pull_zones.return_value = []
+        provider = BunnyShieldProvider(client=mock_bunny_client, api_key="k")
+        with pytest.raises(Exception, match="no pull zones"):
+            provider.resolve_zone_id("anything")
+
     def test_multiple_matches(self, mock_bunny_client):
         mock_bunny_client.list_pull_zones.return_value = [
             {"Id": 1, "Name": "dup"},
             {"Id": 2, "Name": "dup"},
         ]
         provider = BunnyShieldProvider(client=mock_bunny_client, api_key="k")
-        with pytest.raises(Exception, match="Multiple pull zones found"):
+        with pytest.raises(Exception, match=r"Multiple pull zones found.*IDs: 1, 2"):
             provider.resolve_zone_id("dup")
 
     def test_shield_not_enabled(self, mock_bunny_client, sample_pull_zones):
@@ -170,6 +186,30 @@ class TestListZones:
         mock_bunny_client.list_pull_zones.return_value = sample_pull_zones
         provider = BunnyShieldProvider(client=mock_bunny_client, api_key="k")
         assert provider.list_zones() == ["my-cdn", "staging-cdn"]
+
+    def test_shares_cache_with_resolve(
+        self, mock_bunny_client, sample_pull_zones, sample_shield_zone
+    ):
+        """list_zones + resolve_zone_id should only fetch pull zones once."""
+        mock_bunny_client.list_pull_zones.return_value = sample_pull_zones
+        mock_bunny_client.get_shield_zone_by_pullzone.return_value = sample_shield_zone
+        provider = BunnyShieldProvider(client=mock_bunny_client, api_key="k")
+
+        provider.list_zones()
+        provider.resolve_zone_id("my-cdn")
+        provider.list_zones()
+
+        assert mock_bunny_client.list_pull_zones.call_count == 1
+
+    def test_back_to_back_list_zones_uses_cache(self, mock_bunny_client, sample_pull_zones):
+        mock_bunny_client.list_pull_zones.return_value = sample_pull_zones
+        provider = BunnyShieldProvider(client=mock_bunny_client, api_key="k")
+
+        provider.list_zones()
+        provider.list_zones()
+        provider.list_zones()
+
+        assert mock_bunny_client.list_pull_zones.call_count == 1
 
 
 class TestGetPhaseRules:

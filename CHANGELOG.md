@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.1] - 2026-04-17
+
+### Added
+- New lint rules (count increased from 58 to 68):
+  - **BN009** (INFO): duplicate ref across different phases (confusing
+    for audits even though the API scopes refs per-phase)
+  - **BN119** (INFO): regex starts with `.*` or `.+` — redundant with
+    unanchored matching and hurts performance
+  - **BN707** (ERROR): empty/whitespace pattern string in `pattern_matches`
+  - **BN708** (ERROR): invalid country code in `country_code` trigger
+  - **BN709** (ERROR): invalid IP/CIDR in `remote_ip` trigger
+  - **BN710** (ERROR): invalid HTTP method in `request_method` trigger
+  - **BN711** (ERROR): status code outside 100-900 in `status_code` trigger
+  - **BN712** (ERROR): malformed Lua pattern (unclosed bracket, trailing
+    escape, empty body) when `pattern:` prefix is used
+  - **BN713** (WARNING): edge rule URL trigger pattern must start with
+    `/`, `http`, or `*` (patterns without these prefixes never match)
+  - **BN715** (ERROR): edge rule `redirect` action status code
+    (`action_parameter_2`) must be 300-399
+
+### Changed
+- `list_zones()` now uses the shared pull-zones cache populated by
+  `resolve_zone_id()` — back-to-back calls no longer re-query the API.
+- `resolve_zone_id()` error messages now include hints: a list of
+  available pull zones when the name isn't found (helps catch typos),
+  and the conflicting IDs when multiple pull zones share a name.
+- Access list sync batches the ``list_access_lists`` lookup that
+  resolves ``configurationId`` for newly-created lists: was
+  ``1 + N`` lookups, now ``2`` regardless of new-list count.  Creating
+  10 new access lists drops from 11 to 2 ``list_access_lists`` calls
+  (~1.8s saved at typical API latency).
+- New client method ``list_access_lists_full()`` returns the raw
+  response dict.  ``get_managed_access_lists()`` now uses it instead
+  of reaching into ``self._client._request`` (private-method access
+  removed).
+
 ## [0.3.0] - 2026-04-16
 
 ### Added
