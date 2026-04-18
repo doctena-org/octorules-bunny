@@ -69,7 +69,7 @@ class TestAccessListCreateResilience:
         """When config update fails in the batched flush, a warning should appear."""
         from octorules_bunny.provider import BunnyShieldProvider
 
-        mock_client = MagicMock()
+        mock_client = MagicMock(spec=BunnyShieldClient)
         mock_client.list_access_lists.return_value = [{"listId": 42, "configurationId": 99}]
         mock_client.update_access_list_config.side_effect = BunnyAPIError("Config failed")
 
@@ -92,7 +92,7 @@ class TestAccessListCreateResilience:
         """When list_access_lists doesn't find the new listId, warn and skip."""
         from octorules_bunny.provider import BunnyShieldProvider
 
-        mock_client = MagicMock()
+        mock_client = MagicMock(spec=BunnyShieldClient)
         # listId 42 not in the returned summaries
         mock_client.list_access_lists.return_value = [{"listId": 99, "configurationId": 123}]
 
@@ -123,7 +123,7 @@ class TestAccessListFetchResilience:
         """When individual access list fetch fails, a warning should be logged."""
         from octorules.provider.base import Scope
 
-        mock_client = MagicMock()
+        mock_client = MagicMock(spec=BunnyShieldClient)
         mock_client.list_custom_waf_rules.return_value = []
         mock_client.list_rate_limits.return_value = []
 
@@ -148,7 +148,7 @@ class TestAccessListFetchResilience:
         """With max_workers>1, multiple access lists are fetched concurrently."""
         from octorules.provider.base import Scope
 
-        mock_client = MagicMock()
+        mock_client = MagicMock(spec=BunnyShieldClient)
         mock_client.list_access_lists.return_value = [
             {
                 "listId": 1,
@@ -195,7 +195,7 @@ class TestAccessListFetchResilience:
         """Parallel fetch falls back to summary-only on individual failures."""
         from octorules.provider.base import Scope
 
-        mock_client = MagicMock()
+        mock_client = MagicMock(spec=BunnyShieldClient)
         mock_client.list_access_lists.return_value = [
             {
                 "listId": 1,

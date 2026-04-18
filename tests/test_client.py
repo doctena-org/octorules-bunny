@@ -123,7 +123,7 @@ class TestRetryExhaustion:
         response.raise_for_status.side_effect = httpx.HTTPStatusError(
             "rate limited", request=MagicMock(), response=response
         )
-        client._http = MagicMock()
+        client._http = MagicMock(spec=httpx.Client)
         client._http.request.return_value = response
         with pytest.raises(_TransientHTTPError):
             client._request("GET", "/test")
@@ -154,7 +154,7 @@ class TestRetryAfter:
         ok_response.raise_for_status.return_value = None
         ok_response.json.return_value = {"ok": True}
 
-        client._http = MagicMock()
+        client._http = MagicMock(spec=httpx.Client)
         client._http.request.side_effect = [rate_response, ok_response]
         result = client._request("GET", "/test")
         assert result == {"ok": True}
@@ -183,7 +183,7 @@ class TestRetryAfter:
         ok_response.raise_for_status.return_value = None
         ok_response.json.return_value = {"ok": True}
 
-        client._http = MagicMock()
+        client._http = MagicMock(spec=httpx.Client)
         client._http.request.side_effect = [rate_response, ok_response]
         client._request("GET", "/test")
         # Only the normal backoff sleep, no extra Retry-After sleep
@@ -207,7 +207,7 @@ class TestRetryAfter:
         ok_response.raise_for_status.return_value = None
         ok_response.json.return_value = {"ok": True}
 
-        client._http = MagicMock()
+        client._http = MagicMock(spec=httpx.Client)
         client._http.request.side_effect = [rate_response, ok_response]
         client._request("GET", "/test")
         # Only the normal backoff sleep, no extra Retry-After sleep
@@ -231,7 +231,7 @@ class TestRetryAfter:
         ok_response.raise_for_status.return_value = None
         ok_response.json.return_value = {"ok": True}
 
-        client._http = MagicMock()
+        client._http = MagicMock(spec=httpx.Client)
         client._http.request.side_effect = [rate_response, ok_response]
         client._request("GET", "/test")
         # First sleep: Retry-After extra capped: min(9999, 120) - 1.0 = 119.0
@@ -251,7 +251,7 @@ class TestJSONDecodeError:
         response.status_code = 200
         response.raise_for_status.return_value = None
         response.json.side_effect = ValueError("Expecting value")
-        client._http = MagicMock()
+        client._http = MagicMock(spec=httpx.Client)
         client._http.request.return_value = response
         with pytest.raises(BunnyAPIError, match="Non-JSON response"):
             client._request("GET", "/test")
@@ -274,7 +274,7 @@ class TestJSONDecodeError:
         good_response.raise_for_status.return_value = None
         good_response.json.return_value = {"ok": True}
 
-        client._http = MagicMock()
+        client._http = MagicMock(spec=httpx.Client)
         client._http.request.side_effect = [bad_response, good_response]
         result = client._request("GET", "/test")
         assert result == {"ok": True}
