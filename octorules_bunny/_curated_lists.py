@@ -24,7 +24,8 @@ Example::
 """
 
 import logging
-import threading
+
+from octorules.registration import idempotent_registration
 
 from octorules_bunny._config_base import ConfigChange, ConfigFormatter, ConfigPlan
 from octorules_bunny._enums import ACCESS_LIST_ACTION
@@ -203,18 +204,9 @@ def _dump_curated_lists(scope, provider, out_dir):
 # ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
-_registered = False
-_register_lock = threading.Lock()
-
-
+@idempotent_registration
 def register_curated_lists() -> None:
     """Register curated threat list hooks with the core extension system."""
-    global _registered
-    with _register_lock:
-        if _registered:
-            return
-        _registered = True
-
     from octorules.extensions import (
         register_apply_extension,
         register_dump_extension,

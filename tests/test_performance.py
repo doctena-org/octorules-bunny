@@ -1,39 +1,9 @@
 """Tests for performance improvements."""
 
 from octorules_bunny._client import _extract_page
-from octorules_bunny.validate import _PRIVATE_V4, _PRIVATE_V6, _is_private_ip
 
-
-class TestPrivateRangePartitioning:
-    """Private ranges should be partitioned by IP version for faster lookup."""
-
-    def test_v4_ranges_exist(self):
-        assert len(_PRIVATE_V4) > 0
-        assert all(n.version == 4 for n, _ in _PRIVATE_V4)
-
-    def test_v6_ranges_exist(self):
-        assert len(_PRIVATE_V6) > 0
-        assert all(n.version == 6 for n, _ in _PRIVATE_V6)
-
-    def test_total_count_matches(self):
-        """All private ranges should be in exactly one partition."""
-        from octorules_bunny.validate import _PRIVATE_RANGES
-
-        assert len(_PRIVATE_V4) + len(_PRIVATE_V6) == len(_PRIVATE_RANGES)
-
-    def test_ipv4_lookup_uses_v4_pool(self):
-        """IPv4 private check should work correctly."""
-        assert _is_private_ip("10.0.0.1") is not None
-        assert _is_private_ip("192.168.1.0/24") is not None
-
-    def test_ipv6_lookup_uses_v6_pool(self):
-        """IPv6 private check should work correctly."""
-        assert _is_private_ip("::1") is not None
-        assert _is_private_ip("fc00::1") is not None
-
-    def test_public_ip_returns_none(self):
-        assert _is_private_ip("8.8.8.8") is None
-        assert _is_private_ip("2606:4700::") is None
+# Reserved/bogon range coverage migrated to octorules core v0.26.0
+# (tests/test_reserved_ips.py).  Removed from Bunny in v0.3.2.
 
 
 class TestExtractPage:

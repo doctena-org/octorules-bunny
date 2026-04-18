@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.2] - 2026-04-18
+
+### Added
+- **BN311** (access_list, WARNING): catch-all CIDR (``0.0.0.0/0`` or
+  ``::/0``) in an access list. Parallels GA306 (Google), AZ322 (Azure),
+  and WA163 (AWS) — fills the last remaining gap in the catch-all
+  rule family across providers.
+
+### Changed
+- BN307 (overlap) now skips catch-all entries so they aren't
+  double-flagged against every other CIDR in the list. Catch-alls
+  are handled exclusively by BN311. Behavior narrowing — configs
+  with ``0.0.0.0/0`` + other entries stop seeing BN307 warnings for
+  those combinations.
+- BN307 algorithm rewritten from O(n²) pairwise comparison to
+  O(n log n) sweep-line. Large access lists (1,000+ entries) now
+  lint in well under a second; the previous brute-force pass was
+  quadratic and scaled poorly.
+- Minimum ``octorules`` dependency: ``>=0.26.0`` (was ``>=0.24.0``).
+
 ## [0.3.1] - 2026-04-17
 
 ### Added

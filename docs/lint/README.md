@@ -1,6 +1,6 @@
 # Lint Rule Reference
 
-`octorules lint` performs offline static analysis of your Bunny Shield WAF rules files. **68 rules** with the `BN` prefix cover structure, actions, operators, variables, transformations, conditions, rate limits, access lists, edge rules, cross-rule analysis, and best practices.
+`octorules lint` performs offline static analysis of your Bunny Shield WAF rules files. **69 rules** with the `BN` prefix cover structure, actions, operators, variables, transformations, conditions, rate limits, access lists, edge rules, cross-rule analysis, and best practices.
 
 These rules are registered automatically when `octorules-bunny` is installed. They run alongside any core and other provider rules during `octorules lint`.
 
@@ -89,6 +89,7 @@ Suppressed findings are excluded from the report but counted in the summary line
 | [BN308](access-list.md#bn308--invalid-ja4-fingerprint) | Invalid JA4 fingerprint format | WARNING |
 | [BN309](access-list.md#bn309--duplicate-entry-in-access-list) | Duplicate entry in access list | WARNING |
 | [BN310](access-list.md#bn310--duplicate-organization-entry-in-access-list) | Duplicate organization entry in access list | WARNING |
+| [BN311](access-list.md#bn311--catch-all-cidr-in-access-list) | Catch-all CIDR (0.0.0.0/0 or ::/0) in access list | WARNING |
 | [BN400](condition.md#bn400--condition-missing-variable) | Condition missing 'variable' | ERROR |
 | [BN401](condition.md#bn401--condition-missing-operator) | Condition missing 'operator' | ERROR |
 | [BN402](condition.md#bn402--detect_sqlidetect_xss-ignores-value) | detect_sqli/detect_xss operators ignore 'value' field | WARNING |
@@ -128,7 +129,7 @@ Suppressed findings are excluded from the report but counted in the summary line
 | Variable sub-value validation | BN115–BN119 | 4 | [variable-subvalue.md](variable-subvalue.md) |
 | Transformation checks | BN125 | 1 | [transformations.md](transformations.md) |
 | Rate limit | BN200–BN210 | 5 | [rate-limit.md](rate-limit.md) |
-| Access list | BN300–BN310 | 11 | [access-list.md](access-list.md) |
+| Access list | BN300–BN311 | 12 | [access-list.md](access-list.md) |
 | Condition validation | BN400–BN404 | 5 | [condition.md](condition.md) |
 | Cross-rule analysis | BN500–BN503 | 4 | [cross-rule.md](cross-rule.md) |
 | Best practice | BN600–BN602 | 3 | [best-practice.md](best-practice.md) |

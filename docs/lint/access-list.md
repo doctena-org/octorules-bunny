@@ -150,6 +150,8 @@ A CIDR has host bits set (e.g., `10.0.0.1/24`). The API normalises to the networ
 
 Two CIDRs in the same access list overlap. The broader range already covers the narrower one.
 
+Catch-all entries (`0.0.0.0/0`, `::/0`) are handled by [BN311](#bn311--catch-all-cidr-in-access-list) and skipped here to avoid spamming BN307 against every other entry in the list.
+
 **Triggers on:**
 
 ```yaml
@@ -249,5 +251,24 @@ The same organization entry appears more than once in an `organization` type acc
 ```
 
 **Fix:** Remove the duplicate entry.
+
+### BN311 — Catch-all CIDR in access list
+
+**Severity:** WARNING
+
+A `cidr` type access list contains `0.0.0.0/0` or `::/0` — CIDRs that match every address. Blocking against them takes the whole internet down rather than a targeted set. The usual cause is a placeholder the author forgot to replace, or the wrong list type for a catch-all intent.
+
+Overlap detection (BN307) skips catch-all entries so this rule is the exclusive handler for that case.
+
+**Triggers on:**
+
+```yaml
+    type: cidr
+    content: |
+      0.0.0.0/0
+      192.168.1.0/24
+```
+
+**Fix:** Replace the catch-all entry with specific CIDRs, or remove the rule if the intent was to deny everything (in which case the list itself is superfluous).
 
 ---

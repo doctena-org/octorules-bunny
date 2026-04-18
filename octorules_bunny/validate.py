@@ -4,6 +4,7 @@ import ipaddress
 import re
 
 from octorules.linter.engine import LintResult, Severity
+from octorules.reserved_ips import is_reserved
 
 from octorules_bunny._enums import (
     ACCESS_LIST_TYPE,
@@ -66,6 +67,7 @@ RULE_IDS: frozenset[str] = frozenset(
         "BN308",
         "BN309",
         "BN310",
+        "BN311",
         "BN400",
         "BN401",
         "BN402",
@@ -114,6 +116,10 @@ _NUMERIC_OPERATORS = frozenset({"eq", "ge", "gt", "le", "lt"})
 _MAX_DESCRIPTION_LEN = 255
 _MAX_CHAINED_CONDITIONS = 10
 
+# Catch-all CIDR ranges (match everything) — flagged by BN311 and skipped
+# by BN307 to avoid double-firing against every other entry in the list.
+_CATCH_ALL_CIDRS = frozenset({"0.0.0.0/0", "::/0"})
+
 # Known top-level fields for each phase type.
 _CUSTOM_WAF_FIELDS = frozenset(
     {"ref", "action", "severity", "description", "conditions", "transformations"}
@@ -126,43 +132,8 @@ _ACCESS_LIST_FIELDS = frozenset({"ref", "type", "action", "enabled", "content", 
 # Variables that semantically require a sub-value.
 _REQUIRES_SUBVALUE = frozenset({"request_headers", "request_cookies"})
 
-# Reserved/bogon networks (RFC 1918, loopback, link-local, etc.)
-_PRIVATE_RANGES: list[tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, str]] = [
-    # IPv4
-    (ipaddress.ip_network("10.0.0.0/8"), "RFC 1918 private"),
-    (ipaddress.ip_network("172.16.0.0/12"), "RFC 1918 private"),
-    (ipaddress.ip_network("192.168.0.0/16"), "RFC 1918 private"),
-    (ipaddress.ip_network("127.0.0.0/8"), "loopback"),
-    (ipaddress.ip_network("169.254.0.0/16"), "link-local"),
-    (ipaddress.ip_network("100.64.0.0/10"), "CGNAT (RFC 6598)"),
-    (ipaddress.ip_network("0.0.0.0/8"), "this network"),
-    (ipaddress.ip_network("192.0.2.0/24"), "documentation (RFC 5737)"),
-    (ipaddress.ip_network("198.51.100.0/24"), "documentation (RFC 5737)"),
-    (ipaddress.ip_network("203.0.113.0/24"), "documentation (RFC 5737)"),
-    (ipaddress.ip_network("192.0.0.0/24"), "IANA special purpose"),
-    (ipaddress.ip_network("192.88.99.0/24"), "6to4 relay anycast"),
-    (ipaddress.ip_network("198.18.0.0/15"), "benchmark testing (RFC 2544)"),
-    (ipaddress.ip_network("224.0.0.0/4"), "multicast"),
-    (ipaddress.ip_network("240.0.0.0/4"), "reserved for future use"),
-    # IPv6
-    (ipaddress.ip_network("::/128"), "unspecified"),
-    (ipaddress.ip_network("::1/128"), "loopback"),
-    (ipaddress.ip_network("::ffff:0:0/96"), "IPv4-mapped"),
-    (ipaddress.ip_network("64:ff9b::/96"), "NAT64 (RFC 6052)"),
-    (ipaddress.ip_network("100::/64"), "discard (RFC 6666)"),
-    (ipaddress.ip_network("2001:db8::/32"), "documentation (RFC 3849)"),
-    (ipaddress.ip_network("2001::/23"), "IANA special purpose"),
-    (ipaddress.ip_network("2001::/32"), "Teredo"),
-    (ipaddress.ip_network("2002::/16"), "6to4"),
-    (ipaddress.ip_network("fc00::/7"), "unique local"),
-    (ipaddress.ip_network("fe80::/10"), "link-local"),
-    (ipaddress.ip_network("ff00::/8"), "multicast"),
-    (ipaddress.ip_network("::ffff:0:0:0/96"), "IPv4-translated"),
-]
-
-# Partitioned by IP version for faster lookup (avoids version comparison per entry).
-_PRIVATE_V4 = [(n, d) for n, d in _PRIVATE_RANGES if n.version == 4]
-_PRIVATE_V6 = [(n, d) for n, d in _PRIVATE_RANGES if n.version == 6]
+# Reserved/bogon network detection is provided by octorules.reserved_ips
+# (single source of truth across all providers; see core v0.26.0).
 
 
 def _result(
@@ -231,25 +202,6 @@ def _check_lua_pattern(pattern: str) -> str | None:
             i = close + 1
             continue
         i += 1
-    return None
-
-
-def _is_private_ip(addr_str: str) -> str | None:
-    """Return description if *addr_str* falls within a reserved/bogon range, else None.
-
-    Uses version-partitioned lists so only IPv4 or IPv6 ranges are
-    scanned, cutting the average search length in half.
-    """
-    try:
-        net = ipaddress.ip_network(addr_str, strict=False)
-    except ValueError:
-        # Unparseable addresses bypass this check — BN302 catches them
-        # upstream, so returning None here is intentional.
-        return None
-    pool = _PRIVATE_V4 if net.version == 4 else _PRIVATE_V6
-    for priv, desc in pool:
-        if net.subnet_of(priv):
-            return desc
     return None
 
 
@@ -843,11 +795,24 @@ def _validate_access_list(rule: dict, results: list[LintResult], phase: str) -> 
     valid_nets: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
     if list_type == "cidr":
         for entry in entries:
+            # BN311: catch-all CIDR (runs before strict-vs-loose parse so it
+            # fires cleanly regardless of parse outcome).
+            if entry in _CATCH_ALL_CIDRS:
+                results.append(
+                    _result(
+                        "BN311",
+                        Severity.WARNING,
+                        f"Catch-all CIDR {entry!r} matches every address",
+                        phase,
+                        ref,
+                        field="content",
+                    )
+                )
             try:
                 net_strict = ipaddress.ip_network(entry, strict=True)
                 valid_nets.append(net_strict)
                 # BN305: private/reserved ranges
-                priv_desc = _is_private_ip(entry)
+                priv_desc = is_reserved(entry)
                 if priv_desc:
                     results.append(
                         _result(
@@ -874,7 +839,7 @@ def _validate_access_list(rule: dict, results: list[LintResult], phase: str) -> 
                             field="content",
                         )
                     )
-                    priv_desc = _is_private_ip(entry)
+                    priv_desc = is_reserved(entry)
                     if priv_desc:
                         results.append(
                             _result(
@@ -898,22 +863,40 @@ def _validate_access_list(rule: dict, results: list[LintResult], phase: str) -> 
                         )
                     )
 
-        # BN307: overlapping CIDRs within the same access list
-        for i, net_a in enumerate(valid_nets):
-            for net_b in valid_nets[i + 1 :]:
-                if net_a.version != net_b.version:
-                    continue
-                if net_a.overlaps(net_b) and net_a != net_b:
-                    results.append(
-                        _result(
-                            "BN307",
-                            Severity.WARNING,
-                            f"Overlapping CIDRs: {net_a} and {net_b}",
-                            phase,
-                            ref,
-                            field="content",
+        # BN307: overlapping CIDRs within the same access list.  Uses a
+        # sweep-line algorithm (O(n log n)) — large access lists need
+        # efficient overlap detection to keep lint fast.  Skip catch-all
+        # entries (0.0.0.0/0, ::/0); those are handled by BN311 and would
+        # otherwise spam BN307 against every other entry.
+        overlap_nets = [n for n in valid_nets if str(n) not in _CATCH_ALL_CIDRS]
+        v4_nets = sorted(
+            (n for n in overlap_nets if n.version == 4),
+            key=lambda n: (int(n.network_address), n.prefixlen),
+        )
+        v6_nets = sorted(
+            (n for n in overlap_nets if n.version == 6),
+            key=lambda n: (int(n.network_address), n.prefixlen),
+        )
+        for sorted_group in (v4_nets, v6_nets):
+            active: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
+            for net in sorted_group:
+                # Pop networks whose range we've passed.
+                while active and int(active[-1].broadcast_address) < int(net.network_address):
+                    active.pop()
+                if active:
+                    parent = active[-1]
+                    if net != parent:
+                        results.append(
+                            _result(
+                                "BN307",
+                                Severity.WARNING,
+                                f"Overlapping CIDRs: {parent} and {net}",
+                                phase,
+                                ref,
+                                field="content",
+                            )
                         )
-                    )
+                active.append(net)
 
         # BN309: duplicate CIDRs (normalised so 10.0.0.1/24 == 10.0.0.0/24)
         seen_cidrs: set[str] = set()
@@ -937,7 +920,7 @@ def _validate_access_list(rule: dict, results: list[LintResult], phase: str) -> 
         for entry in entries:
             try:
                 ipaddress.ip_address(entry)
-                priv_desc = _is_private_ip(entry)
+                priv_desc = is_reserved(entry)
                 if priv_desc:
                     results.append(
                         _result(
@@ -952,7 +935,7 @@ def _validate_access_list(rule: dict, results: list[LintResult], phase: str) -> 
             except ValueError:
                 try:
                     ipaddress.ip_network(entry, strict=False)
-                    priv_desc = _is_private_ip(entry)
+                    priv_desc = is_reserved(entry)
                     if priv_desc:
                         results.append(
                             _result(

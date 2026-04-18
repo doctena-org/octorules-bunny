@@ -490,6 +490,58 @@ class TestAccessList:
         r = _access_list(content="US\n\nDE\n")
         assert validate_rules([r], phase=_A) == []
 
+    # --- BN311: catch-all CIDR -------------------------------------------
+    def test_bn311_ipv4_catch_all(self):
+        r = _access_list(type="cidr", content="0.0.0.0/0")
+        ids = _ids(validate_rules([r], phase=_A))
+        assert "BN311" in ids
+
+    def test_bn311_ipv6_catch_all(self):
+        r = _access_list(type="cidr", content="::/0")
+        ids = _ids(validate_rules([r], phase=_A))
+        assert "BN311" in ids
+
+    def test_bn311_non_catch_all_not_flagged(self):
+        r = _access_list(type="cidr", content="10.0.0.0/8\n8.8.8.0/24")
+        ids = _ids(validate_rules([r], phase=_A))
+        assert "BN311" not in ids
+
+    def test_bn311_catch_all_does_not_double_fire_bn307(self):
+        # Regression for v0.3.3: 0.0.0.0/0 used to make BN307 (overlap)
+        # fire against every other entry in the list.  After v0.3.3 the
+        # catch-all is BN311's exclusive domain.
+        r = _access_list(type="cidr", content="0.0.0.0/0\n10.0.0.0/8\n192.168.0.0/16")
+        results = validate_rules([r], phase=_A)
+        ids = _ids(results)
+        assert "BN311" in ids
+        bn307 = [x for x in results if x.rule_id == "BN307"]
+        # 10.0.0.0/8 and 192.168.0.0/16 don't overlap each other → zero BN307.
+        assert bn307 == [], [x.message for x in bn307]
+
+    def test_bn307_sweep_line_fast_on_large_input(self):
+        # Regression for v0.3.3: BN307 used to be O(n²) pairwise comparison.
+        # Rewritten to sweep-line O(n log n) — 1,000 disjoint /32s should
+        # lint in well under a second.  The original brute-force pass
+        # multiplied out to ~500k comparisons at this size.
+        import time
+
+        content = "\n".join(f"203.0.{i // 256}.{i % 256}/32" for i in range(1000))
+        r = _access_list(type="cidr", content=content)
+        start = time.monotonic()
+        results = validate_rules([r], phase=_A)
+        elapsed = time.monotonic() - start
+        assert elapsed < 1.0, f"BN307 sweep-line too slow: {elapsed:.2f}s for 1000 entries"
+        # Disjoint /32s → zero overlap findings.
+        assert [x for x in results if x.rule_id == "BN307"] == []
+
+    def test_bn307_subnet_still_detected_after_sweep_line(self):
+        r = _access_list(type="cidr", content="10.0.0.0/8\n10.1.0.0/16")
+        results = validate_rules([r], phase=_A)
+        bn307 = [x for x in results if x.rule_id == "BN307"]
+        assert len(bn307) == 1
+        assert "10.0.0.0/8" in bn307[0].message
+        assert "10.1.0.0/16" in bn307[0].message
+
 
 # ---------------------------------------------------------------------------
 # BN4xx — Condition validation

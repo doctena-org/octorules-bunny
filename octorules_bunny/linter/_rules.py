@@ -78,6 +78,12 @@ BN309 = RuleMeta("BN309", "access_list", "Duplicate entry in access list", Sever
 BN310 = RuleMeta(
     "BN310", "access_list", "Duplicate organization entry in access list", Severity.WARNING
 )
+BN311 = RuleMeta(
+    "BN311",
+    "access_list",
+    "Catch-all CIDR (0.0.0.0/0 or ::/0) in access list",
+    Severity.WARNING,
+)
 
 # BN4xx — Condition validation
 BN400 = RuleMeta("BN400", "condition", "Condition missing 'variable'", Severity.ERROR)
@@ -209,6 +215,7 @@ BN_RULE_METAS: tuple[RuleMeta, ...] = (
     BN308,
     BN309,
     BN310,
+    BN311,
     # BN4xx — Condition
     BN400,
     BN401,

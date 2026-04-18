@@ -10,7 +10,8 @@ Shield in ``octorules_cloudflare/page_shield.py``.
 """
 
 import logging
-import threading
+
+from octorules.registration import idempotent_registration
 
 from octorules_bunny._config_base import ConfigChange, ConfigFormatter, ConfigPlan, diff_flat_dicts
 from octorules_bunny._enums import (
@@ -546,18 +547,9 @@ def _dump_shield_config(scope, provider, out_dir):
 # ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
-_registered = False
-_register_lock = threading.Lock()
-
-
+@idempotent_registration
 def register_shield_config() -> None:
     """Register all shield config hooks with the core extension system."""
-    global _registered
-    with _register_lock:
-        if _registered:
-            return
-        _registered = True
-
     from octorules.extensions import (
         register_apply_extension,
         register_dump_extension,

@@ -11,7 +11,8 @@ format_extension, validate_extension, and dump_extension.
 """
 
 import logging
-import threading
+
+from octorules.registration import idempotent_registration
 
 from octorules_bunny._config_base import ConfigChange, ConfigFormatter, ConfigPlan
 
@@ -234,18 +235,9 @@ def _dump_pullzone_security(scope, provider, out_dir):
 # ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
-_registered = False
-_register_lock = threading.Lock()
-
-
+@idempotent_registration
 def register_pullzone_security() -> None:
     """Register all pull zone security hooks with the core extension system."""
-    global _registered
-    with _register_lock:
-        if _registered:
-            return
-        _registered = True
-
     from octorules.extensions import (
         register_apply_extension,
         register_dump_extension,
