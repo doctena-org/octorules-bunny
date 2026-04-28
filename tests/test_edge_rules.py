@@ -6,8 +6,8 @@ validation (BN7xx rule IDs).
 
 import pytest
 from octorules.config import ConfigError
-from octorules.linter.engine import LintResult
 from octorules.provider.base import Scope
+from octorules.testing.lint import assert_lint, assert_no_lint
 
 from octorules_bunny._enums import (
     EDGE_ACTION,
@@ -49,10 +49,6 @@ def _edge_rule(**overrides):
     }
     base.update(overrides)
     return base
-
-
-def _ids(results: list[LintResult]) -> list[str]:
-    return [r.rule_id for r in results]
 
 
 # ---------------------------------------------------------------------------
@@ -402,85 +398,79 @@ class TestBN001EdgeMissingRef:
     def test_missing_ref(self):
         r = _edge_rule()
         del r["ref"]
-        assert "BN001" in _ids(validate_rules([r], phase=_E))
+        assert_lint(validate_rules([r], phase=_E), "BN001")
 
     def test_empty_ref(self):
-        assert "BN001" in _ids(validate_rules([_edge_rule(ref="")], phase=_E))
+        assert_lint(validate_rules([_edge_rule(ref="")], phase=_E), "BN001")
 
 
 class TestBN002EdgeDuplicateRef:
     def test_duplicate_ref(self):
         rules = [_edge_rule(ref="dup"), _edge_rule(ref="dup")]
-        assert "BN002" in _ids(validate_rules(rules, phase=_E))
+        assert_lint(validate_rules(rules, phase=_E), "BN002")
 
 
 class TestBN004EdgeUnknownFields:
     def test_unknown_field(self):
         r = _edge_rule(unknown_field="x")
-        assert "BN004" in _ids(validate_rules([r], phase=_E))
+        assert_lint(validate_rules([r], phase=_E), "BN004")
 
     def test_api_id_not_flagged(self):
         r = _edge_rule(_api_id="guid-123")
-        assert "BN004" not in _ids(validate_rules([r], phase=_E))
+        assert_no_lint(validate_rules([r], phase=_E), "BN004")
 
 
 class TestBN700InvalidActionType:
     def test_missing_action_type(self):
         r = _edge_rule()
         del r["action_type"]
-        assert "BN700" in _ids(validate_rules([r], phase=_E))
+        assert_lint(validate_rules([r], phase=_E), "BN700")
 
     def test_invalid_action_type(self):
-        assert "BN700" in _ids(validate_rules([_edge_rule(action_type="nope")], phase=_E))
+        assert_lint(validate_rules([_edge_rule(action_type="nope")], phase=_E), "BN700")
 
     def test_all_valid_action_types(self):
         for action in EDGE_ACTION:
-            ids = _ids(validate_rules([_edge_rule(action_type=action)], phase=_E))
-            assert "BN700" not in ids, f"{action} incorrectly flagged"
+            assert_no_lint(validate_rules([_edge_rule(action_type=action)], phase=_E), "BN700")
 
 
 class TestBN701InvalidTriggerType:
     def test_missing_trigger_type(self):
         r = _edge_rule(triggers=[{"pattern_matching_type": "any", "pattern_matches": ["*"]}])
-        assert "BN701" in _ids(validate_rules([r], phase=_E))
+        assert_lint(validate_rules([r], phase=_E), "BN701")
 
     def test_invalid_trigger_type(self):
         r = _edge_rule(
             triggers=[{"type": "bogus", "pattern_matching_type": "any", "pattern_matches": ["*"]}]
         )
-        assert "BN701" in _ids(validate_rules([r], phase=_E))
+        assert_lint(validate_rules([r], phase=_E), "BN701")
 
     def test_all_valid_trigger_types(self):
         for ttype in EDGE_TRIGGER:
             trigger = {"type": ttype, "pattern_matching_type": "any", "pattern_matches": ["*"]}
-            ids = _ids(validate_rules([_edge_rule(triggers=[trigger])], phase=_E))
-            assert "BN701" not in ids, f"{ttype} incorrectly flagged"
+            assert_no_lint(validate_rules([_edge_rule(triggers=[trigger])], phase=_E), "BN701")
 
 
 class TestBN702NoTriggers:
     def test_empty_triggers(self):
-        assert "BN702" in _ids(validate_rules([_edge_rule(triggers=[])], phase=_E))
+        assert_lint(validate_rules([_edge_rule(triggers=[])], phase=_E), "BN702")
 
     def test_missing_triggers(self):
         r = _edge_rule()
         del r["triggers"]
-        assert "BN702" in _ids(validate_rules([r], phase=_E))
+        assert_lint(validate_rules([r], phase=_E), "BN702")
 
 
 class TestBN703InvalidTriggerMatchingType:
     def test_invalid(self):
         r = _edge_rule(trigger_matching_type="bogus")
-        assert "BN703" in _ids(validate_rules([r], phase=_E))
+        assert_lint(validate_rules([r], phase=_E), "BN703")
 
     def test_valid_all(self):
-        assert "BN703" not in _ids(
-            validate_rules([_edge_rule(trigger_matching_type="all")], phase=_E)
-        )
+        assert_no_lint(validate_rules([_edge_rule(trigger_matching_type="all")], phase=_E), "BN703")
 
     def test_valid_any(self):
-        assert "BN703" not in _ids(
-            validate_rules([_edge_rule(trigger_matching_type="any")], phase=_E)
-        )
+        assert_no_lint(validate_rules([_edge_rule(trigger_matching_type="any")], phase=_E), "BN703")
 
 
 class TestBN704EmptyPatternMatches:
@@ -488,16 +478,16 @@ class TestBN704EmptyPatternMatches:
         r = _edge_rule(
             triggers=[{"type": "url", "pattern_matching_type": "any", "pattern_matches": []}]
         )
-        assert "BN704" in _ids(validate_rules([r], phase=_E))
+        assert_lint(validate_rules([r], phase=_E), "BN704")
 
     def test_non_empty_patterns_ok(self):
-        assert "BN704" not in _ids(validate_rules([_edge_rule()], phase=_E))
+        assert_no_lint(validate_rules([_edge_rule()], phase=_E), "BN704")
 
 
 class TestBN706ActionParameterRequirements:
     def test_bn706_redirect_missing_param1(self):
         r = _edge_rule(action_type="redirect", action_parameter_1="", action_parameter_2="301")
-        assert "BN706" in _ids(validate_rules([r], phase=_E))
+        assert_lint(validate_rules([r], phase=_E), "BN706")
 
     def test_bn706_redirect_missing_param2(self):
         r = _edge_rule(
@@ -505,30 +495,29 @@ class TestBN706ActionParameterRequirements:
             action_parameter_1="https://example.com/new",
             action_parameter_2="",
         )
-        assert "BN706" in _ids(validate_rules([r], phase=_E))
+        assert_lint(validate_rules([r], phase=_E), "BN706")
 
     def test_bn706_force_ssl_no_params_ok(self):
         r = _edge_rule(action_type="force_ssl", action_parameter_1="", action_parameter_2="")
-        assert "BN706" not in _ids(validate_rules([r], phase=_E))
+        assert_no_lint(validate_rules([r], phase=_E), "BN706")
 
     def test_bn706_set_status_code_missing_param1(self):
         r = _edge_rule(action_type="set_status_code", action_parameter_1="")
-        assert "BN706" in _ids(validate_rules([r], phase=_E))
+        assert_lint(validate_rules([r], phase=_E), "BN706")
 
     def test_bn706_set_status_code_with_param1_ok(self):
         r = _edge_rule(action_type="set_status_code", action_parameter_1="404")
-        assert "BN706" not in _ids(validate_rules([r], phase=_E))
+        assert_no_lint(validate_rules([r], phase=_E), "BN706")
 
     def test_bn706_set_response_header_missing_both(self):
         r = _edge_rule(
             action_type="set_response_header", action_parameter_1="", action_parameter_2=""
         )
-        results = [res for res in validate_rules([r], phase=_E) if res.rule_id == "BN706"]
-        assert len(results) == 2  # both param1 and param2 missing
+        assert_lint(validate_rules([r], phase=_E), "BN706", count=2)
 
     def test_bn706_block_request_no_params_ok(self):
         r = _edge_rule(action_type="block_request", action_parameter_1="", action_parameter_2="")
-        assert "BN706" not in _ids(validate_rules([r], phase=_E))
+        assert_no_lint(validate_rules([r], phase=_E), "BN706")
 
 
 class TestBN705InvalidPatternMatchingType:
@@ -536,40 +525,39 @@ class TestBN705InvalidPatternMatchingType:
         r = _edge_rule(
             triggers=[{"type": "url", "pattern_matching_type": "bogus", "pattern_matches": ["*"]}]
         )
-        assert "BN705" in _ids(validate_rules([r], phase=_E))
+        assert_lint(validate_rules([r], phase=_E), "BN705")
 
     def test_valid(self):
         for pmt in ("any", "all", "none"):
             trigger = {"type": "url", "pattern_matching_type": pmt, "pattern_matches": ["*"]}
-            ids = _ids(validate_rules([_edge_rule(triggers=[trigger])], phase=_E))
-            assert "BN705" not in ids
+            assert_no_lint(validate_rules([_edge_rule(triggers=[trigger])], phase=_E), "BN705")
 
 
 class TestBN005EdgeTypeMismatch:
     def test_enabled_not_bool(self):
-        assert "BN005" in _ids(validate_rules([_edge_rule(enabled="yes")], phase=_E))
+        assert_lint(validate_rules([_edge_rule(enabled="yes")], phase=_E), "BN005")
 
     def test_triggers_not_list(self):
-        assert "BN005" in _ids(validate_rules([_edge_rule(triggers="bad")], phase=_E))
+        assert_lint(validate_rules([_edge_rule(triggers="bad")], phase=_E), "BN005")
 
     def test_pattern_matches_not_list(self):
         r = _edge_rule(
             triggers=[{"type": "url", "pattern_matching_type": "any", "pattern_matches": "bad"}]
         )
-        assert "BN005" in _ids(validate_rules([r], phase=_E))
+        assert_lint(validate_rules([r], phase=_E), "BN005")
 
 
 class TestEdgeRuleBestPractice:
     def test_bn601_no_description(self):
         r = _edge_rule(description="")
-        assert "BN601" in _ids(validate_rules([r], phase=_E))
+        assert_lint(validate_rules([r], phase=_E), "BN601")
 
     def test_bn601_with_description_ok(self):
-        assert "BN601" not in _ids(validate_rules([_edge_rule()], phase=_E))
+        assert_no_lint(validate_rules([_edge_rule()], phase=_E), "BN601")
 
     def test_bn011_description_too_long(self):
         r = _edge_rule(description="x" * 256)
-        assert "BN011" in _ids(validate_rules([r], phase=_E))
+        assert_lint(validate_rules([r], phase=_E), "BN011")
 
 
 class TestEdgeRuleEdgeCases:

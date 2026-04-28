@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.3] - 2026-04-27
+
+### Changed
+- `BunnyShieldClient` now sends the shared `octorules/<version>`
+  User-Agent header (sourced from `octorules.USER_AGENT`) on every
+  request. Vendor-SDK-based providers (Cloudflare, AWS, Google, Azure)
+  keep their SDK's own User-Agent; Bunny is the only WAF provider
+  built on raw httpx, so it is the only one that needs to set this
+  explicitly.
+
 ## [0.3.2] - 2026-04-18
 
 ### Added

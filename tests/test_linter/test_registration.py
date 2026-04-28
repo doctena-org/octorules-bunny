@@ -1,7 +1,18 @@
 """Tests for Bunny lint rule registration (BN_RULE_METAS / BN_RULE_IDS sync)."""
 
+from octorules.linter.plugin import get_registered_plugins
+
+from octorules_bunny.linter import register_bunny_linter
 from octorules_bunny.linter._plugin import BN_RULE_IDS
 from octorules_bunny.linter._rules import BN_RULE_METAS
+
+
+class TestIdempotentRegistration:
+    def test_idempotent_registration(self):
+        """Calling register_bunny_linter() again should be a no-op."""
+        count_before = len(get_registered_plugins())
+        register_bunny_linter()
+        assert len(get_registered_plugins()) == count_before
 
 
 class TestRuleRegistration:

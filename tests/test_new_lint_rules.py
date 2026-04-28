@@ -1,6 +1,7 @@
 """Tests for additional lint rules: BN009, BN119, BN713, BN715."""
 
 from octorules.linter.engine import LintContext
+from octorules.testing.lint import assert_lint, assert_no_lint
 
 from octorules_bunny.linter._plugin import bunny_lint
 from octorules_bunny.validate import validate_rules
@@ -8,10 +9,6 @@ from octorules_bunny.validate import validate_rules
 
 def _ctx(*, phase_filter=None, plan_tier=""):
     return LintContext(phase_filter=phase_filter, plan_tier=plan_tier)
-
-
-def _ids(results):
-    return [r.rule_id for r in results]
 
 
 # ---------------------------------------------------------------------------
@@ -49,8 +46,7 @@ class TestBN009CrossPhaseDupRef:
         }
         ctx = _ctx()
         bunny_lint(rules_data, ctx)
-        ids = [r.rule_id for r in ctx.results]
-        assert "BN009" in ids
+        assert_lint(ctx, "BN009")
 
     def test_unique_refs_across_phases_ok(self):
         rules_data = {
@@ -81,8 +77,7 @@ class TestBN009CrossPhaseDupRef:
         }
         ctx = _ctx()
         bunny_lint(rules_data, ctx)
-        ids = [r.rule_id for r in ctx.results]
-        assert "BN009" not in ids
+        assert_no_lint(ctx, "BN009")
 
     def test_within_phase_dup_still_bn002(self):
         """Same ref within a phase triggers BN002, not BN009."""
@@ -110,8 +105,7 @@ class TestBN009CrossPhaseDupRef:
         }
         ctx = _ctx()
         bunny_lint(rules_data, ctx)
-        ids = [r.rule_id for r in ctx.results]
-        assert "BN002" in ids
+        assert_lint(ctx, "BN002")
 
 
 # ---------------------------------------------------------------------------
@@ -129,7 +123,7 @@ class TestBN119RegexLeadingWildcard:
             ],
         }
         results = validate_rules([rule], phase="bunny_waf_custom_rules")
-        assert "BN119" in _ids(results)
+        assert_lint(results, "BN119")
 
     def test_dotplus_prefix_warns(self):
         rule = {
@@ -142,7 +136,7 @@ class TestBN119RegexLeadingWildcard:
             ],
         }
         results = validate_rules([rule], phase="bunny_waf_custom_rules")
-        assert "BN119" in _ids(results)
+        assert_lint(results, "BN119")
 
     def test_anchored_dotstar_ok(self):
         """^.* is a valid catch-all pattern (handled by BN108), not a perf issue."""
@@ -156,7 +150,7 @@ class TestBN119RegexLeadingWildcard:
             ],
         }
         results = validate_rules([rule], phase="bunny_waf_custom_rules")
-        assert "BN119" not in _ids(results)
+        assert_no_lint(results, "BN119")
 
     def test_no_leading_wildcard_ok(self):
         rule = {
@@ -169,7 +163,7 @@ class TestBN119RegexLeadingWildcard:
             ],
         }
         results = validate_rules([rule], phase="bunny_waf_custom_rules")
-        assert "BN119" not in _ids(results)
+        assert_no_lint(results, "BN119")
 
     def test_non_rx_operator_not_checked(self):
         rule = {
@@ -182,7 +176,7 @@ class TestBN119RegexLeadingWildcard:
             ],
         }
         results = validate_rules([rule], phase="bunny_waf_custom_rules")
-        assert "BN119" not in _ids(results)
+        assert_no_lint(results, "BN119")
 
 
 # ---------------------------------------------------------------------------
@@ -217,32 +211,32 @@ class TestBN713UrlPatternFormat:
     def test_pattern_without_slash_or_http_rejected(self):
         rule = _edge_rule(["admin"])
         results = validate_rules([rule], phase="bunny_edge_rules")
-        assert "BN713" in _ids(results)
+        assert_lint(results, "BN713")
 
     def test_slash_prefix_ok(self):
         rule = _edge_rule(["/admin", "/api/*"])
         results = validate_rules([rule], phase="bunny_edge_rules")
-        assert "BN713" not in _ids(results)
+        assert_no_lint(results, "BN713")
 
     def test_http_prefix_ok(self):
         rule = _edge_rule(["http://*", "https://example.com/*"])
         results = validate_rules([rule], phase="bunny_edge_rules")
-        assert "BN713" not in _ids(results)
+        assert_no_lint(results, "BN713")
 
     def test_wildcard_prefix_ok(self):
         rule = _edge_rule(["*"])
         results = validate_rules([rule], phase="bunny_edge_rules")
-        assert "BN713" not in _ids(results)
+        assert_no_lint(results, "BN713")
 
     def test_lua_pattern_bypasses_check(self):
         rule = _edge_rule(["pattern:^admin$"])
         results = validate_rules([rule], phase="bunny_edge_rules")
-        assert "BN713" not in _ids(results)
+        assert_no_lint(results, "BN713")
 
     def test_non_url_trigger_not_checked(self):
         rule = _edge_rule(["US"], trigger_type="country_code")
         results = validate_rules([rule], phase="bunny_edge_rules")
-        assert "BN713" not in _ids(results)
+        assert_no_lint(results, "BN713")
 
 
 # ---------------------------------------------------------------------------
@@ -257,7 +251,7 @@ class TestBN715RedirectStatusCode:
             action_parameter_2="200",
         )
         results = validate_rules([rule], phase="bunny_edge_rules")
-        assert "BN715" in _ids(results)
+        assert_lint(results, "BN715")
 
     def test_status_404_rejected(self):
         rule = _edge_rule(
@@ -267,7 +261,7 @@ class TestBN715RedirectStatusCode:
             action_parameter_2="404",
         )
         results = validate_rules([rule], phase="bunny_edge_rules")
-        assert "BN715" in _ids(results)
+        assert_lint(results, "BN715")
 
     def test_status_301_ok(self):
         rule = _edge_rule(
@@ -277,7 +271,7 @@ class TestBN715RedirectStatusCode:
             action_parameter_2="301",
         )
         results = validate_rules([rule], phase="bunny_edge_rules")
-        assert "BN715" not in _ids(results)
+        assert_no_lint(results, "BN715")
 
     def test_status_302_ok(self):
         rule = _edge_rule(
@@ -287,7 +281,7 @@ class TestBN715RedirectStatusCode:
             action_parameter_2="302",
         )
         results = validate_rules([rule], phase="bunny_edge_rules")
-        assert "BN715" not in _ids(results)
+        assert_no_lint(results, "BN715")
 
     def test_all_3xx_codes_ok(self):
         for code in ("300", "301", "302", "303", "307", "308"):
@@ -298,7 +292,7 @@ class TestBN715RedirectStatusCode:
                 action_parameter_2=code,
             )
             results = validate_rules([rule], phase="bunny_edge_rules")
-            assert "BN715" not in _ids(results), f"{code} should be OK"
+            assert_no_lint(results, "BN715")
 
     def test_non_numeric_rejected(self):
         rule = _edge_rule(
@@ -308,7 +302,7 @@ class TestBN715RedirectStatusCode:
             action_parameter_2="redirect-me",
         )
         results = validate_rules([rule], phase="bunny_edge_rules")
-        assert "BN715" in _ids(results)
+        assert_lint(results, "BN715")
 
     def test_non_redirect_action_not_checked(self):
         """Other actions can use action_parameter_2 for anything."""
@@ -319,7 +313,7 @@ class TestBN715RedirectStatusCode:
             action_parameter_2="HIT",
         )
         results = validate_rules([rule], phase="bunny_edge_rules")
-        assert "BN715" not in _ids(results)
+        assert_no_lint(results, "BN715")
 
     def test_empty_param2_handled_by_bn706(self):
         """Missing param2 is BN706, not BN715."""
@@ -330,5 +324,5 @@ class TestBN715RedirectStatusCode:
             action_parameter_2="",
         )
         results = validate_rules([rule], phase="bunny_edge_rules")
-        assert "BN706" in _ids(results)
-        assert "BN715" not in _ids(results)
+        assert_lint(results, "BN706")
+        assert_no_lint(results, "BN715")

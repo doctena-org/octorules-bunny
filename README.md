@@ -17,7 +17,6 @@ This installs octorules (core) and octorules-bunny. The provider is auto-discove
 providers:
   bunny:
     api_key: env/BUNNY_API_KEY
-    plan: advanced
   rules:
     directory: ./rules
 

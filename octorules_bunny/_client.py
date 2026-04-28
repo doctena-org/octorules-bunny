@@ -8,6 +8,7 @@ import logging
 import time
 
 import httpx
+from octorules import USER_AGENT
 from octorules.retry import retry_with_backoff
 
 log = logging.getLogger(__name__)
@@ -97,7 +98,11 @@ class BunnyShieldClient:
     ) -> None:
         client_kwargs: dict = {
             "base_url": BASE_URL,
-            "headers": {"AccessKey": api_key, "Accept": "application/json"},
+            "headers": {
+                "AccessKey": api_key,
+                "Accept": "application/json",
+                "User-Agent": USER_AGENT,
+            },
             "timeout": httpx.Timeout(timeout),
         }
         if max_connections is not None:
