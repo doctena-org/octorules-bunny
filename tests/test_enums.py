@@ -117,16 +117,16 @@ class TestEnumMapClass:
 class TestEnumRoundTrip:
     @pytest.mark.parametrize("em,name,_count", _ALL_MAPS, ids=_map_id)
     def test_round_trip(self, em, name, _count):
-        """Every int key round-trips through resolve then unresolve."""
+        """Every int key round-trips through resolve then unresolve.
+
+        Round-trip implies bijection: if two ints A and B both mapped to
+        the same string S, then ``unresolve(S)`` would return A (or B)
+        deterministically, and the round-trip for the other value would
+        fail. So a passing round-trip already proves no duplicate values.
+        """
         for int_val, str_val in em.items():
             got = em.unresolve(str_val)
             assert got == int_val, f"{name}: {int_val} -> {str_val!r} -> {got}"
-
-    @pytest.mark.parametrize("em,name,_count", _ALL_MAPS, ids=_map_id)
-    def test_no_duplicate_values(self, em, name, _count):
-        """Bijective: no two int keys map to the same string."""
-        strs = [s for _, s in em.items()]
-        assert len(set(strs)) == len(strs), f"{name}: dupes"
 
 
 class TestEnumCounts:
@@ -144,25 +144,16 @@ class TestOperatorGaps:
 
 
 class TestResolveHelpers:
-    """Backward-compat: resolve/unresolve methods match old _resolve/_unresolve."""
+    """Sanity check that resolve/unresolve work on a real production EnumMap.
 
-    def test_resolve_int(self):
+    The exhaustive resolve/unresolve semantics are covered against synthetic
+    maps in :class:`TestEnumMapClass`; this single test guards against an
+    accidentally-broken module-level instance.
+    """
+
+    def test_action_resolve_round_trip(self):
         assert ACTION.resolve(1) == "block"
-
-    def test_resolve_unknown_int(self):
-        assert ACTION.resolve(99) == "99"
-
-    def test_resolve_passthrough_str(self):
-        assert ACTION.resolve("block") == "block"
-
-    def test_unresolve_str(self):
         assert ACTION.unresolve("block") == 1
-
-    def test_unresolve_unknown_str(self):
-        assert ACTION.unresolve("unknown") == "unknown"
-
-    def test_unresolve_passthrough_int(self):
-        assert ACTION.unresolve(1) == 1
 
 
 class TestEnumMapItems:

@@ -11,9 +11,7 @@ from octorules.testing.lint import assert_lint, assert_no_lint
 
 from octorules_bunny._enums import (
     EDGE_ACTION,
-    EDGE_PATTERN_MATCH,
     EDGE_TRIGGER,
-    EDGE_TRIGGER_MATCH,
 )
 from octorules_bunny.provider import (
     BunnyShieldProvider,
@@ -54,40 +52,10 @@ def _edge_rule(**overrides):
 # ---------------------------------------------------------------------------
 # Enum maps
 # ---------------------------------------------------------------------------
-class TestEdgeEnumRoundTrip:
-    def test_action_round_trip(self):
-        for int_val, str_val in EDGE_ACTION.items():
-            assert EDGE_ACTION.unresolve(str_val) == int_val
-
-    def test_trigger_round_trip(self):
-        for int_val, str_val in EDGE_TRIGGER.items():
-            assert EDGE_TRIGGER.unresolve(str_val) == int_val
-
-    def test_pattern_match_round_trip(self):
-        for int_val, str_val in EDGE_PATTERN_MATCH.items():
-            assert EDGE_PATTERN_MATCH.unresolve(str_val) == int_val
-
-    def test_trigger_match_round_trip(self):
-        for int_val, str_val in EDGE_TRIGGER_MATCH.items():
-            assert EDGE_TRIGGER_MATCH.unresolve(str_val) == int_val
-
-    def test_action_count(self):
-        assert len(EDGE_ACTION) == 35
-
-    def test_trigger_count(self):
-        assert len(EDGE_TRIGGER) == 14
-
-    def test_pattern_match_count(self):
-        assert len(EDGE_PATTERN_MATCH) == 3
-
-    def test_trigger_match_count(self):
-        assert len(EDGE_TRIGGER_MATCH) == 3
-
-    def test_no_duplicate_values(self):
-        # Bijection enforced by EnumMap constructor; verify counts match
-        for em in (EDGE_ACTION, EDGE_TRIGGER):
-            strs = [s for _, s in em.items()]
-            assert len(set(strs)) == len(strs)
+# Note: round-trip + count + bijection coverage for EDGE_ACTION, EDGE_TRIGGER,
+# EDGE_PATTERN_MATCH, EDGE_TRIGGER_MATCH lives in tests/test_enums.py via
+# the parametrized ``_ALL_MAPS`` table — duplicating it here would just be
+# ceremony.
 
 
 # ---------------------------------------------------------------------------

@@ -1,4 +1,4 @@
-"""Bunny Shield audit extension — extracts IP ranges from access lists and WAF rules."""
+"""Bunny Shield audit extension — extracts IPs from access lists, WAF, and edge rules."""
 
 from octorules.audit import RuleIPInfo
 from octorules.extensions import register_audit_extension
@@ -64,6 +64,32 @@ def _extract_ips(rules_data: dict, phase_name: str) -> list[RuleIPInfo]:
                                 ip_ranges=[value],
                             )
                         )
+
+        # Edge rules: extract from triggers of type remote_ip. Each such trigger
+        # carries a list of IP/CIDR pattern_matches. The edge-rule action lives
+        # under "action_type" (block / redirect / set_header / …); use that as
+        # the audit action string for ip-shadow and zone-drift comparisons.
+        elif phase_name == "bunny_edge_rules":
+            edge_action = str(rule.get("action_type", "")) or action
+            ip_ranges: list[str] = []
+            for trigger in rule.get("triggers", []) or []:
+                if not isinstance(trigger, dict):
+                    continue
+                if trigger.get("type") != "remote_ip":
+                    continue
+                for p in trigger.get("pattern_matches", []) or []:
+                    if isinstance(p, str) and p.strip():
+                        ip_ranges.append(p.strip())
+            if ip_ranges:
+                results.append(
+                    RuleIPInfo(
+                        zone_name="",
+                        phase_name=phase_name,
+                        ref=ref,
+                        action=edge_action,
+                        ip_ranges=ip_ranges,
+                    )
+                )
 
     return results
 

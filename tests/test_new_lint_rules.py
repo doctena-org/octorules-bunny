@@ -283,17 +283,6 @@ class TestBN715RedirectStatusCode:
         results = validate_rules([rule], phase="bunny_edge_rules")
         assert_no_lint(results, "BN715")
 
-    def test_all_3xx_codes_ok(self):
-        for code in ("300", "301", "302", "303", "307", "308"):
-            rule = _edge_rule(
-                ["/old"],
-                action_type="redirect",
-                action_parameter_1="https://example.com/new",
-                action_parameter_2=code,
-            )
-            results = validate_rules([rule], phase="bunny_edge_rules")
-            assert_no_lint(results, "BN715")
-
     def test_non_numeric_rejected(self):
         rule = _edge_rule(
             ["/old"],

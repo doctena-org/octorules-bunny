@@ -1,5 +1,6 @@
 """Tests for Bunny Shield rule validation."""
 
+import pytest
 from octorules.testing.lint import assert_lint, assert_no_lint
 
 from octorules_bunny.validate import validate_rules
@@ -132,16 +133,20 @@ class TestUnknownFields:
 # BN005 — Type mismatch
 # ---------------------------------------------------------------------------
 class TestTypeMismatch:
-    def test_bn005_severity_not_string(self):
-        assert_lint(validate_rules([_custom(severity=2)], phase=_C), "BN005")
+    @pytest.mark.parametrize(
+        "field,bad_value",
+        [
+            ("severity", 2),
+            ("action", 1),
+            ("conditions", "bad"),
+        ],
+    )
+    def test_bn005_custom_field_wrong_type(self, field, bad_value):
+        assert_lint(validate_rules([_custom(**{field: bad_value})], phase=_C), "BN005")
 
-    def test_bn005_action_not_string(self):
-        assert_lint(validate_rules([_custom(action=1)], phase=_C), "BN005")
-
-    def test_bn005_conditions_not_list(self):
-        assert_lint(validate_rules([_custom(conditions="bad")], phase=_C), "BN005")
-
-    def test_bn005_enabled_not_bool(self):
+    def test_bn005_access_list_enabled_not_bool(self):
+        # access_list has different fields than custom — kept separate
+        # so the phase + builder are obvious from the test name.
         r = _access_list(enabled="yes")
         assert_lint(validate_rules([r], phase=_A), "BN005")
 
@@ -446,32 +451,17 @@ class TestAccessList:
         r = _access_list(type="ip", content="8.8.8.8")
         assert_no_lint(validate_rules([r], phase=_A), "BN305")
 
-    def test_bn305_cgnat_cidr(self):
-        """CGNAT range (100.64.0.0/10) should be flagged as reserved."""
+    def test_bn305_message_includes_range_description(self):
+        """The BN305 finding identifies which reserved category was matched.
+
+        Range coverage (CGNAT, RFC5737, link-local, benchmark, IPv6 doc, …)
+        is tested in ``octorules.reserved_ips``. Here we only verify Bunny
+        wires the rule emission correctly and surfaces the description.
+        """
         r = _access_list(type="cidr", content="100.64.1.0/24")
         results = validate_rules([r], phase=_A)
         bn305 = assert_lint(results, "BN305")
         assert "CGNAT" in bn305[0].message
-
-    def test_bn305_documentation_rfc5737(self):
-        """RFC 5737 documentation address should be flagged."""
-        r = _access_list(type="cidr", content="192.0.2.0/24")
-        assert_lint(validate_rules([r], phase=_A), "BN305")
-
-    def test_bn305_link_local(self):
-        """Link-local range (169.254.0.0/16) should be flagged."""
-        r = _access_list(type="cidr", content="169.254.1.0/24")
-        assert_lint(validate_rules([r], phase=_A), "BN305")
-
-    def test_bn305_benchmark_testing(self):
-        """RFC 2544 benchmark testing range should be flagged."""
-        r = _access_list(type="cidr", content="198.18.0.0/15")
-        assert_lint(validate_rules([r], phase=_A), "BN305")
-
-    def test_bn305_ipv6_documentation(self):
-        """IPv6 documentation prefix (2001:db8::/32) should be flagged."""
-        r = _access_list(type="cidr", content="2001:db8::/32")
-        assert_lint(validate_rules([r], phase=_A), "BN305")
 
     def test_mixed_entries_partial_invalid(self):
         """Some entries valid, some invalid — each flagged individually."""
@@ -679,21 +669,22 @@ class TestSubValueMisuse:
 # BN306 — CIDR host bits set
 # ---------------------------------------------------------------------------
 class TestCIDRHostBits:
-    def test_bn306_host_bits(self):
-        r = _access_list(type="cidr", content="10.0.0.1/24")
-        assert_lint(validate_rules([r], phase=_A), "BN306")
-
-    def test_bn306_clean_cidr_ok(self):
-        r = _access_list(type="cidr", content="10.0.0.0/24")
-        assert_no_lint(validate_rules([r], phase=_A), "BN306")
-
-    def test_bn306_ipv6_host_bits(self):
-        r = _access_list(type="cidr", content="2001:db8::1/32")
-        assert_lint(validate_rules([r], phase=_A), "BN306")
-
-    def test_bn306_ipv6_clean(self):
-        r = _access_list(type="cidr", content="2001:db8::/32")
-        assert_no_lint(validate_rules([r], phase=_A), "BN306")
+    @pytest.mark.parametrize(
+        "cidr,should_fire",
+        [
+            ("10.0.0.1/24", True),  # IPv4 with host bits
+            ("10.0.0.0/24", False),  # IPv4 clean
+            ("2001:db8::1/32", True),  # IPv6 with host bits
+            ("2001:db8::/32", False),  # IPv6 clean
+        ],
+    )
+    def test_bn306_host_bits(self, cidr, should_fire):
+        r = _access_list(type="cidr", content=cidr)
+        results = validate_rules([r], phase=_A)
+        if should_fire:
+            assert_lint(results, "BN306")
+        else:
+            assert_no_lint(results, "BN306")
 
     def test_ipv6_cidr_valid(self):
         r = _access_list(type="cidr", content="2001:db8::/32\nfc00::/7")

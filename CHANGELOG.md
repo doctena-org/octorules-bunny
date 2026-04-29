@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-04-29
+
+### Added
+- `octorules audit` IP-extraction now covers the `bunny_edge_rules`
+  phase. Edge-rule triggers of type `remote_ip` carry a list of
+  IP/CIDR `pattern_matches`; these are now surfaced to the audit's
+  `ip-shadow`, `ip-overlap`, `cdn-ranges`, and zone-drift checks.
+  Previously three of four Bunny phases participated in audit; edge
+  rules were silently excluded. Running `octorules audit` on an
+  existing config will simply return more findings if your edge
+  rules carry `remote_ip` triggers — no migration needed.
+
 ## [0.3.3] - 2026-04-27
 
 ### Changed
