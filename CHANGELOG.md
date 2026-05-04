@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-05-04
+
+### Added
+- **BN120** (WARNING): Overly-permissive regex on `rx` operator (e.g., `.`, `.*`, `^.+$`, `|`) plus path-context variants for `request_uri`/`request_filename`. Extends BN119.
+- **BN122** (INFO): Redundant `lowercase` transformation when using `str_eq` (already case-insensitive).
+- **BN123** (WARNING): Percent-encoded literal (`%2F`, `%20`) on decoded URI variable — will never match; use decoded form or `request_uri_raw`.
+- **BN124** (WARNING): `contains_word` operator with whitespace in value — cannot satisfy word boundary.
+- **BN504** (WARNING): Cross-list / cross-rule CIDR overlap.
+- **BN520** (WARNING): HTTP method in `request_method` should be uppercase on case-sensitive operators.
+- **BN521** (WARNING): Path-prefix value should start with `/` for `request_uri`/`request_filename`.
+- **BN549** (INFO): Fully-anchored literal regex (`^foo$`) on `rx` — suggests `eq` operator instead.
+
 ## [0.4.0] - 2026-04-29
 
 ### Added

@@ -201,4 +201,68 @@ A `variable_value` is set on a variable that doesn't support sub-values. Only `a
       - variable: request_uri
 ```
 
+### BN120 — Overly-permissive regex pattern
+
+**Severity:** WARNING
+
+The `rx` operator's regex pattern uses permissive metacharacters that may not be intentional. This check flags patterns that match every value (e.g., `.`, `.*`, `^.+$`, `|`) plus path-context variants for `request_uri` and `request_filename`, and suggests escaping or using a more specific operator.
+
+**Triggers on:**
+
+```yaml
+      - variable: request_uri
+        operator: rx
+        value: "admin."  # unescaped dot matches any character
+```
+
+**Fix:** Escape the dot or be explicit:
+
+```yaml
+        value: "admin\\."  # matches literal dot
+        # or use begins_with:
+        operator: begins_with
+        value: "/admin"
+```
+
+### BN520 — HTTP method should be uppercase
+
+**Severity:** WARNING
+
+HTTP method values in `request_method` conditions should be uppercase. This check fires on case-sensitive operators (`str_match`, `rx`, `begins_with`, `contains`, `contains_word`, `ends_with`). It does not fire on case-insensitive `str_eq`.
+
+**Triggers on:**
+
+```yaml
+      - variable: request_method
+        operator: str_match
+        value: "post"
+```
+
+**Fix:** Use uppercase:
+
+```yaml
+        value: "POST"
+```
+
+### BN549 — Fully-anchored literal regex
+
+**Severity:** INFO
+
+A regex pattern on the `rx` operator is fully anchored (starts with `^` and ends with `$`) and contains only literal characters with no special regex syntax. Consider using the `eq` operator instead for clarity and performance.
+
+**Triggers on:**
+
+```yaml
+      - variable: request_uri
+        operator: rx
+        value: "^/admin$"
+```
+
+**Fix:** Use the `eq` operator:
+
+```yaml
+        operator: eq
+        value: "/admin"
+```
+
 ---

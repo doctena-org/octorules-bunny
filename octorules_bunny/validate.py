@@ -47,9 +47,16 @@ RULE_IDS: frozenset[str] = frozenset(
         "BN108",
         "BN109",
         "BN119",
+        "BN120",
+        "BN520",
+        "BN521",
+        "BN549",
         "BN115",
         "BN116",
         "BN117",
+        "BN122",
+        "BN123",
+        "BN124",
         "BN125",
         "BN200",
         "BN201",
@@ -73,6 +80,11 @@ RULE_IDS: frozenset[str] = frozenset(
         "BN402",
         "BN403",
         "BN404",
+        "BN500",
+        "BN501",
+        "BN502",
+        "BN503",
+        "BN504",
         "BN600",
         "BN601",
         "BN602",
@@ -111,14 +123,71 @@ _JA4_RE = re.compile(
     r"_[a-f0-9]{12}"  # cipher hash
     r"_[a-f0-9]{12}$"  # extension hash
 )
+# BN549: fully anchored literal regex (conservative — only basic alphanumerics + /, -, _)
+_FULLY_ANCHORED_LITERAL_REGEX = re.compile(
+    r"^\^"  # start anchor
+    r"((?:[a-zA-Z0-9_/-]|\\\.|\\/)+)"  # literal-only payload (escaped . or / OK)
+    r"\$$"  # end anchor
+)
 _DETECT_OPERATORS = frozenset({"detect_sqli", "detect_xss"})
 _NUMERIC_OPERATORS = frozenset({"eq", "ge", "gt", "le", "lt"})
+# Case-sensitive string operators (should be used with uppercase method names)
+_CASE_SENSITIVE_OPERATORS = frozenset(
+    {"str_match", "rx", "begins_with", "contains", "contains_word", "ends_with"}
+)
+# Literal-text operators where leading / in path matters
+_LITERAL_TEXT_OPERATORS = frozenset({"eq", "str_eq", "str_match", "begins_with", "contains"})
 _MAX_DESCRIPTION_LEN = 255
 _MAX_CHAINED_CONDITIONS = 10
 
 # Catch-all CIDR ranges (match everything) — flagged by BN311 and skipped
 # by BN307 to avoid double-firing against every other entry in the list.
 _CATCH_ALL_CIDRS = frozenset({"0.0.0.0/0", "::/0"})
+
+# BN120: overly permissive regex patterns that match too broadly
+_OVERLY_PERMISSIVE_PATTERNS = frozenset(
+    {
+        "",  # empty string
+        ".",  # any single character
+        ".*",  # any characters
+        "^.*",  # any characters from start
+        ".*$",  # any characters to end
+        "^.*$",  # any characters anywhere
+        ".+",  # one or more any character
+        "^.+",  # one or more any character from start
+        ".+$",  # one or more any character to end
+        "^.+$",  # one or more any character anywhere
+        "^",  # anchor only (matches start)
+        "$",  # anchor only (matches end)
+        "|",  # alternation with empty branch
+    }
+)
+
+# Path-context patterns (URI/filename specific) for BN120 path context check
+_OVERLY_PERMISSIVE_PATH_PATTERNS = frozenset(
+    {
+        "/",  # any root path
+        "^/",  # root path from start
+        "/.*",  # anything under root
+        "^/.*",  # anything under root from start
+        "/.*$",  # anything under root to end
+        "^/.*$",  # anything under root anywhere
+    }
+)
+
+# BN122: case-insensitive string operator (makes lowercase transformation redundant)
+_CASE_INSENSITIVE_OPERATORS = frozenset({"str_eq", "contains_word"})
+
+# BN123: decoded URI variables (percent-encoding doesn't apply)
+_DECODED_URI_VARIABLES = frozenset({"request_uri", "request_filename", "request_basename"})
+
+# BN123: percent-encoded literal operator scope
+_PERCENT_ENCODED_LITERAL_OPERATORS = frozenset(
+    {"eq", "str_eq", "str_match", "begins_with", "ends_with", "contains", "contains_word"}
+)
+
+# BN123: percent-encoded sequence pattern
+_PERCENT_ENCODED_RE = re.compile(r"%[0-9A-Fa-f]{2}")
 
 # Known top-level fields for each phase type.
 _CUSTOM_WAF_FIELDS = frozenset(
@@ -314,6 +383,59 @@ def _validate_condition(
                             suggestion="Remove the leading '.*' or '.+'",
                         )
                     )
+            # BN120: overly permissive regex patterns
+            if isinstance(pattern, str) and pattern in _OVERLY_PERMISSIVE_PATTERNS:
+                results.append(
+                    _result(
+                        "BN120",
+                        Severity.WARNING,
+                        f"{prefix}: regex {pattern!r} is overly permissive and matches "
+                        "almost everything",
+                        phase,
+                        ref,
+                        field="value",
+                        suggestion="Consider a more specific pattern",
+                    )
+                )
+            # BN120 path context: additional patterns when var is request_uri/request_filename
+            if (
+                isinstance(pattern, str)
+                and isinstance(var, str)
+                and var in ("request_uri", "request_filename")
+                and pattern in _OVERLY_PERMISSIVE_PATH_PATTERNS
+            ):
+                results.append(
+                    _result(
+                        "BN120",
+                        Severity.WARNING,
+                        f"{prefix}: regex {pattern!r} on path variable {var!r} matches "
+                        "almost all paths",
+                        phase,
+                        ref,
+                        field="value",
+                        suggestion="Consider a more specific pattern",
+                    )
+                )
+            # BN549: fully anchored literal regex (can simplify to eq)
+            m = _FULLY_ANCHORED_LITERAL_REGEX.match(pattern) if isinstance(pattern, str) else None
+            if m is not None:
+                # Reconstruct the literal: unescape `\.` → `.` and `\/` → `/`.
+                literal = m.group(1).replace(r"\.", ".").replace(r"\/", "/")
+                results.append(
+                    _result(
+                        "BN549",
+                        Severity.INFO,
+                        f"{prefix}: regex {pattern!r} is a fully-anchored literal; "
+                        f"can be simplified to eq operator",
+                        phase,
+                        ref,
+                        field="value",
+                        suggestion=(
+                            f'Replace with: {{"variable": "{var}", "operator": "eq", '
+                            f'"value": "{literal}"}}'
+                        ),
+                    )
+                )
 
     # BN107: Numeric operators on non-numeric variables
     if (
@@ -352,6 +474,95 @@ def _validate_condition(
                     field="value",
                 )
             )
+
+    # BN520: HTTP method should be uppercase when using case-sensitive operators
+    if (
+        isinstance(var, str)
+        and var == "request_method"
+        and isinstance(op, str)
+        and op in _CASE_SENSITIVE_OPERATORS
+        and isinstance(value, str)
+    ):
+        # Check if value contains lowercase ASCII letters
+        if any(c.islower() for c in value if c.isascii()):
+            results.append(
+                _result(
+                    "BN520",
+                    Severity.WARNING,
+                    f"{prefix}: HTTP method should be uppercase (RFC specifies uppercase); "
+                    f"{op!r} is case-sensitive",
+                    phase,
+                    ref,
+                    field="value",
+                    suggestion=f"Uppercase the value: {value.upper()}",
+                )
+            )
+
+    # BN521: URI variables should start with / (for literal-text operators)
+    if (
+        isinstance(var, str)
+        and var in ("request_uri", "request_filename")
+        and isinstance(op, str)
+        and op in _LITERAL_TEXT_OPERATORS
+        and isinstance(value, str)
+        and value
+        and not value.startswith("/")
+    ):
+        # Skip if it's a regex anchor pattern (won't fire on rx operator anyway)
+        if not (op == "rx" and value.startswith("^/")):
+            results.append(
+                _result(
+                    "BN521",
+                    Severity.WARNING,
+                    f"{prefix}: {var!r} value should start with '/' (normalizes path matching)",
+                    phase,
+                    ref,
+                    field="value",
+                    suggestion=f"Prepend '/': /{value}",
+                )
+            )
+
+    # BN123: Percent-encoded literal on decoded URI variable
+    if (
+        isinstance(var, str)
+        and var in _DECODED_URI_VARIABLES
+        and isinstance(op, str)
+        and op in _PERCENT_ENCODED_LITERAL_OPERATORS
+        and isinstance(value, str)
+        and _PERCENT_ENCODED_RE.search(value)
+    ):
+        results.append(
+            _result(
+                "BN123",
+                Severity.WARNING,
+                f"{prefix}: {var!r} is decoded; percent-encoded sequences "
+                "like %2F will never match",
+                phase,
+                ref,
+                field="value",
+                suggestion="Use decoded form (e.g., '/' not '%2F') or use request_uri_raw",
+            )
+        )
+
+    # BN124: CONTAINSWORD with multi-word value
+    if (
+        isinstance(op, str)
+        and op == "contains_word"
+        and isinstance(value, str)
+        and any(c.isspace() for c in value)
+    ):
+        results.append(
+            _result(
+                "BN124",
+                Severity.WARNING,
+                f"{prefix}: contains_word requires a single word, but value contains whitespace",
+                phase,
+                ref,
+                field="value",
+                suggestion="Split into multiple contains_word conditions, or use "
+                "'contains' for substring matching",
+            )
+        )
 
     # -- Sub-value validation --
     sub = cond.get("variable_value", "")
@@ -593,6 +804,26 @@ def _validate_custom_rule(rule: dict, results: list[LintResult], phase: str) -> 
                     )
                 )
             seen_transforms.add(t)
+
+    # BN122: Redundant LOWERCASE transformation with case-insensitive operators
+    if "lowercase" in seen_transforms and conditions:
+        for cond in conditions:
+            op = cond.get("operator", "")
+            if isinstance(op, str) and op in _CASE_INSENSITIVE_OPERATORS:
+                results.append(
+                    _result(
+                        "BN122",
+                        Severity.INFO,
+                        f"Redundant LOWERCASE transformation: operator {op!r} is case-insensitive",
+                        phase,
+                        ref,
+                        field="transformations",
+                        suggestion="Remove LOWERCASE transformation, or switch to "
+                        "str_match if case-sensitive matching is needed",
+                    )
+                )
+                # Only report once per rule
+                break
 
 
 def _validate_rate_limit_rule(rule: dict, results: list[LintResult], phase: str) -> None:
@@ -1420,6 +1651,118 @@ def _validate_edge_rule(rule: dict, results: list[LintResult], phase: str) -> No
 
 
 # ---------------------------------------------------------------------------
+# Cross-rule overlap validation
+# ---------------------------------------------------------------------------
+def _validate_cross_rule_cidr_overlap(
+    rules: list[dict], results: list[LintResult], phase: str
+) -> None:
+    """BN504: Detect CIDR overlap across access lists in the same phase.
+
+    When multiple access lists reference overlapping CIDRs with different
+    actions (e.g., allow in one, block in another), the evaluation order
+    determines which rule wins. This creates subtle bugs if the order changes.
+
+    Algorithm: collect every CIDR from access lists, group by IP version,
+    sweep-line in O(n log n). Catch-all entries (0.0.0.0/0, ::/0) are
+    skipped — those don't produce false positives anyway. Only report if
+    actions differ (same action = redundant but not conflicting).
+    """
+    if not phase.endswith("access_list_rules"):
+        return
+
+    # Terminal actions: block/allow determine the outcome; log is non-terminal
+    _TERMINAL_ACTIONS = frozenset({"block", "allow"})
+
+    # Collect: (list_ref, action, cidr_str, parsed_network)
+    entries: list[tuple[str, str, str, ipaddress.IPv4Network | ipaddress.IPv6Network]] = []
+    for rule in rules:
+        if not isinstance(rule, dict):
+            continue
+        ref = str(rule.get("ref", ""))
+        action = str(rule.get("action", ""))
+        list_type = str(rule.get("type", ""))
+
+        # Only CIDR-based access lists can overlap
+        if list_type != "cidr":
+            continue
+
+        content = rule.get("content", "")
+        if not content or not str(content).strip():
+            continue
+
+        for entry in str(content).splitlines():
+            entry = entry.strip()
+            if not entry or entry in _CATCH_ALL_CIDRS:
+                continue
+            try:
+                net = ipaddress.ip_network(entry, strict=False)
+                entries.append((ref, action, entry, net))
+            except ValueError:
+                continue  # BN302 handles invalid CIDRs
+
+    if len(entries) < 2:
+        return
+
+    # Group by IP version (IPv4 and IPv6 can't overlap)
+    from collections import defaultdict
+
+    groups: dict[int, list[tuple[str, str, str, ipaddress.IPv4Network | ipaddress.IPv6Network]]] = (
+        defaultdict(list)
+    )
+    for ref, action, cidr, net in entries:
+        groups[net.version].append((ref, action, cidr, net))
+
+    seen_pairs: set[tuple[str, str, str, str]] = set()
+    for items in groups.values():
+        if len(items) < 2:
+            continue
+        # Sort by network address, then prefix (broadest first)
+        items_sorted = sorted(items, key=lambda x: (int(x[3].network_address), x[3].prefixlen))
+        active: list[tuple[str, str, str, ipaddress.IPv4Network | ipaddress.IPv6Network]] = []
+        for ref, action, cidr, net in items_sorted:
+            while active and int(active[-1][3].broadcast_address) < int(net.network_address):
+                active.pop()
+            if active:
+                parent_ref, parent_action, parent_cidr, parent_net = active[-1]
+                # Only flag if from different lists AND actions differ (terminal mismatch)
+                if (
+                    parent_ref != ref
+                    and parent_action in _TERMINAL_ACTIONS
+                    and action in _TERMINAL_ACTIONS
+                    and parent_action != action
+                ):
+                    pair_key = (parent_ref, parent_cidr, ref, cidr)
+                    if pair_key not in seen_pairs:
+                        seen_pairs.add(pair_key)
+                        if net == parent_net:
+                            msg = (
+                                f"Duplicate CIDR across access lists with different actions: "
+                                f"{cidr!r} in {ref!r} ({action}) also appears in {parent_ref!r} "
+                                f"({parent_action})"
+                            )
+                        else:
+                            msg = (
+                                f"Overlapping CIDRs across access lists with different actions: "
+                                f"{cidr!r} in {ref!r} ({action}) is contained in {parent_cidr!r} "
+                                f"from {parent_ref!r} ({parent_action})"
+                            )
+                        results.append(
+                            _result(
+                                "BN504",
+                                Severity.WARNING,
+                                msg,
+                                phase,
+                                ref=ref,
+                                field="content",
+                                suggestion=(
+                                    "Verify evaluation order or remove one of the overlapping lists"
+                                ),
+                            )
+                        )
+            active.append((ref, action, cidr, net))
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 def validate_rules(rules: list[dict], *, phase: str = "") -> list[LintResult]:
@@ -1450,5 +1793,8 @@ def validate_rules(rules: list[dict], *, phase: str = "") -> list[LintResult]:
             _validate_rate_limit_rule(rule, results, phase)
         else:
             _validate_custom_rule(rule, results, phase)
+
+    # BN504: Cross-rule CIDR overlap (access list phase only)
+    _validate_cross_rule_cidr_overlap(rules, results, phase)
 
     return results

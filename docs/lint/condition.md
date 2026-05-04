@@ -91,4 +91,37 @@ Two conditions within the same rule are identical. Since conditions are AND-comb
 
 A rule has more than 10 conditions. This may exceed API limits. Consider splitting into separate rules.
 
+### BN124 — `contains_word` with whitespace
+
+**Severity:** WARNING
+
+The `contains_word` operator matches at word boundaries. A value containing whitespace (spaces, tabs, newlines) can never match because `contains_word` cannot span multiple words while respecting boundary semantics. Use `contains` for substring matching or re-examine the intent.
+
+**Triggers on:**
+
+```yaml
+    conditions:
+      - variable: request_uri
+        operator: contains_word
+        value: "admin panel"  # impossible to match as a word
+```
+
+**Fix:** Use `contains` for substring matching:
+
+```yaml
+        operator: contains
+        value: "admin panel"
+```
+
+Or split into separate conditions:
+
+```yaml
+      - variable: request_uri
+        operator: contains_word
+        value: "admin"
+      - variable: request_uri
+        operator: contains_word
+        value: "panel"
+```
+
 ---

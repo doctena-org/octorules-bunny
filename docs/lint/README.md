@@ -1,8 +1,10 @@
 # Lint Rule Reference
 
-`octorules lint` performs offline static analysis of your Bunny Shield WAF rules files. **69 rules** with the `BN` prefix cover structure, actions, operators, variables, transformations, conditions, rate limits, access lists, edge rules, cross-rule analysis, and best practices.
+`octorules lint` performs offline static analysis of your Bunny Shield WAF rules files. **77 rules** with the `BN` prefix cover structure, actions, operators, variables, transformations, conditions, rate limits, access lists, edge rules, cross-rule analysis, and best practices.
 
 These rules are registered automatically when `octorules-bunny` is installed. They run alongside any core and other provider rules during `octorules lint`.
+
+**Note:** Lint rules fire independently — multiple rules may report on the same input when they catch different concerns, providing richer signal for policy optimization.
 
 ### Suppressing rules
 
@@ -72,6 +74,10 @@ Suppressed findings are excluded from the report but counted in the summary line
 | [BN116](variable-subvalue.md#bn116--invalid-geo-sub-value) | Invalid GEO sub-value | ERROR |
 | [BN117](variable-subvalue.md#bn117--request_headersrequest_cookies-requires-variable_value) | REQUEST_HEADERS/REQUEST_COOKIES requires variable_value | WARNING |
 | [BN119](variable-subvalue.md#bn119--regex-starts-with-wildcard) | Regex starts with '.*' or '.+' (performance footgun) | INFO |
+| [BN120](enums.md#bn120--overly-permissive-regex-pattern) | Overly-permissive regex pattern on `rx` operator | WARNING |
+| [BN122](transformations.md#bn122--redundant-lowercase-transformation) | Redundant `lowercase` transformation with case-insensitive operator | INFO |
+| [BN123](variable-subvalue.md#bn123--percent-encoded-literal-value) | Percent-encoded literal value on decoded URI variable | WARNING |
+| [BN124](condition.md#bn124--contains_word-with-whitespace) | `contains_word` operator with whitespace in value | WARNING |
 | [BN125](transformations.md#bn125--duplicate-transformation) | Duplicate transformation in same rule | WARNING |
 | [BN200](rate-limit.md#bn200--request_count-must-be-a-positive-integer) | request_count must be a positive integer | ERROR |
 | [BN201](rate-limit.md#bn201--invalid-timeframe-value) | Invalid timeframe value | ERROR |
@@ -99,6 +105,9 @@ Suppressed findings are excluded from the report but counted in the summary line
 | [BN501](cross-rule.md#bn501--rule-count-exceeds-plan-tier-limit) | Rule count may exceed plan tier limit | WARNING |
 | [BN502](cross-rule.md#bn502--conflicting-access-lists) | Conflicting access lists (ip/cidr/country/asn/ja4 overlap with different actions) | WARNING |
 | [BN503](cross-rule.md#bn503--rule-likely-unreachable-after-catch-all-terminating-rule) | Rule likely unreachable after catch-all terminating rule | WARNING |
+| [BN504](cross-rule.md#bn504--cross-list-cross-rule-cidr-overlap) | Cross-list / cross-rule CIDR overlap | WARNING |
+| [BN520](enums.md#bn520--http-method-should-be-uppercase) | HTTP method should be uppercase in `request_method` value | WARNING |
+| [BN521](variable-subvalue.md#bn521--path-prefix-should-start-with-slash) | Path-prefix value should start with `/` for `request_uri`/`request_filename` | WARNING |
 | [BN600](best-practice.md#bn600--very-short-rule-name) | Very short rule name | INFO |
 | [BN601](best-practice.md#bn601--rule-has-no-description) | Rule has no description | INFO |
 | [BN602](best-practice.md#bn602--access-list-is-disabled) | Access list is disabled (enabled: false) | INFO |
@@ -117,6 +126,7 @@ Suppressed findings are excluded from the report but counted in the summary line
 | [BN712](edge-rule.md#bn712--malformed-lua-pattern) | Malformed Lua pattern (pattern: prefix) | ERROR |
 | [BN713](edge-rule.md#bn713--url-trigger-pattern-format) | URL trigger pattern must start with /, http, or * | WARNING |
 | [BN715](edge-rule.md#bn715--redirect-status-code-range) | Redirect status code must be 300-399 | ERROR |
+| [BN549](enums.md#bn549--fully-anchored-literal-regex) | Fully-anchored literal regex on `rx` operator | INFO |
 
 ---
 
@@ -125,12 +135,12 @@ Suppressed findings are excluded from the report but counted in the summary line
 | Category | BN Range | Rules | Details |
 |----------|----------|-------|--------|
 | Structure | BN001–BN011 | 10 | [structure.md](structure.md) |
-| Enum validation | BN100–BN109 | 10 | [enums.md](enums.md) |
-| Variable sub-value validation | BN115–BN119 | 4 | [variable-subvalue.md](variable-subvalue.md) |
-| Transformation checks | BN125 | 1 | [transformations.md](transformations.md) |
+| Enum validation | BN100–BN109, BN120, BN520, BN549 | 13 | [enums.md](enums.md) |
+| Variable sub-value validation | BN115–BN124 | 7 | [variable-subvalue.md](variable-subvalue.md) |
+| Transformation checks | BN122, BN125 | 2 | [transformations.md](transformations.md) |
 | Rate limit | BN200–BN210 | 5 | [rate-limit.md](rate-limit.md) |
 | Access list | BN300–BN311 | 12 | [access-list.md](access-list.md) |
-| Condition validation | BN400–BN404 | 5 | [condition.md](condition.md) |
-| Cross-rule analysis | BN500–BN503 | 4 | [cross-rule.md](cross-rule.md) |
+| Condition validation | BN400–BN404, BN124 | 6 | [condition.md](condition.md) |
+| Cross-rule analysis | BN500–BN504 | 5 | [cross-rule.md](cross-rule.md) |
 | Best practice | BN600–BN602 | 3 | [best-practice.md](best-practice.md) |
 | Edge rules | BN700–BN715 | 15 | [edge-rule.md](edge-rule.md) |

@@ -33,6 +33,33 @@ BN109 = RuleMeta("BN109", "variable", "variable_value on unsupported variable", 
 BN119 = RuleMeta(
     "BN119", "operator", "Regex starts with '.*' or '.+' (performance footgun)", Severity.INFO
 )
+BN120 = RuleMeta(
+    "BN120",
+    "operator",
+    "Overly permissive regex pattern (may match unintended input)",
+    Severity.WARNING,
+)
+BN549 = RuleMeta(
+    "BN549",
+    "operator",
+    "Fully-anchored literal regex can be simplified to eq operator",
+    Severity.INFO,
+)
+BN520 = RuleMeta(
+    "BN520",
+    "operator",
+    "HTTP method should be uppercase (case-sensitive operator used)",
+    Severity.WARNING,
+)
+BN521 = RuleMeta(
+    "BN521",
+    "operator",
+    "URI variables should start with / (normalizes path matching)",
+    Severity.WARNING,
+)
+
+# BN526 is reserved but undocumented in Bunny docs (header case-sensitivity).
+# Defer implementation until Bunny clarifies the API behavior per no-speculative-apis.md.
 
 # BN1xx — Variable sub-value validation
 BN115 = RuleMeta(
@@ -47,6 +74,18 @@ BN117 = RuleMeta(
 )
 
 # BN1xx — Transformation checks
+BN122 = RuleMeta(
+    "BN122",
+    "transformation",
+    "Redundant LOWERCASE transformation with str_eq operator",
+    Severity.INFO,
+)
+BN123 = RuleMeta(
+    "BN123", "value", "Percent-encoded literal on decoded URI variable", Severity.WARNING
+)
+BN124 = RuleMeta(
+    "BN124", "value", "CONTAINSWORD with multi-word value cannot match", Severity.WARNING
+)
 BN125 = RuleMeta(
     "BN125", "transformation", "Duplicate transformation in same rule", Severity.WARNING
 )
@@ -115,6 +154,12 @@ BN503 = RuleMeta(
     "BN503",
     "cross_rule",
     "Rule likely unreachable after catch-all terminating rule",
+    Severity.WARNING,
+)
+BN504 = RuleMeta(
+    "BN504",
+    "cross_rule",
+    "Overlapping CIDR ranges across multiple access lists with different actions",
     Severity.WARNING,
 )
 
@@ -191,11 +236,18 @@ BN_RULE_METAS: tuple[RuleMeta, ...] = (
     BN108,
     BN109,
     BN119,
+    BN120,
+    BN520,
+    BN521,
+    BN549,
     # BN1xx — Variable sub-value
     BN115,
     BN116,
     BN117,
     # BN1xx — Transformation
+    BN122,
+    BN123,
+    BN124,
     BN125,
     # BN2xx — Rate limit
     BN200,
@@ -227,6 +279,7 @@ BN_RULE_METAS: tuple[RuleMeta, ...] = (
     BN501,
     BN502,
     BN503,
+    BN504,
     # BN6xx — Best practice
     BN600,
     BN601,

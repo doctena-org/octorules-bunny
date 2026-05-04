@@ -114,4 +114,44 @@ bunny_waf_custom_rules:
 
 **Fix:** Reorder rules so the catch-all appears last, or add conditions to narrow its scope.
 
+### BN504 — Cross-list / cross-rule CIDR overlap
+
+**Severity:** WARNING
+
+Two CIDR entries (within the same access list or across different access lists in the same zone) overlap. This may indicate redundancy or a configuration error. Detection uses a sweep-line algorithm to identify overlapping networks, mirroring checks in other providers (AZ339 for Azure, GA305 for Google, WA167 for AWS).
+
+**Triggers on:**
+
+```yaml
+bunny_waf_access_list_rules:
+  - ref: "blocked-1"
+    type: cidr
+    action: block
+    content: |
+      192.0.2.0/24
+      192.0.2.0/25  # overlaps with the /24 above
+  - ref: "blocked-2"
+    type: cidr
+    action: block
+    content: |
+      203.0.113.0/24
+      203.0.113.128/25  # overlaps with the /24 above
+```
+
+**Fix:** Remove the redundant / overlapping CIDR or clarify the intent:
+
+```yaml
+bunny_waf_access_list_rules:
+  - ref: "blocked-1"
+    type: cidr
+    action: block
+    content: |
+      192.0.2.0/24
+  - ref: "blocked-2"
+    type: cidr
+    action: block
+    content: |
+      203.0.113.0/24
+```
+
 ---

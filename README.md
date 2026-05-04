@@ -298,7 +298,7 @@ Bunny Shield WAF tier is **per-zone** (not account-wide). Set via the Bunny dash
 
 ## Linting
 
-69 lint rules with the `BN` prefix validate your rules offline before sync. See [docs/lint/README.md](docs/lint/README.md) for the full reference.
+77 lint rules with the `BN` prefix validate your rules offline before sync. See [docs/lint/README.md](docs/lint/README.md) for the full reference.
 
 ```bash
 octorules lint

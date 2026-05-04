@@ -25,8 +25,8 @@ class TestRuleRegistration:
         assert len(ids) == len(set(ids)), f"Duplicate rule IDs: {ids}"
 
     def test_exact_rule_count(self):
-        assert len(BN_RULE_METAS) == 69, (
-            f"Expected 69 rule metas, got {len(BN_RULE_METAS)}. "
+        assert len(BN_RULE_METAS) == 77, (
+            f"Expected 77 rule metas, got {len(BN_RULE_METAS)}. "
             f"Update this count when adding/removing rules."
         )
 
