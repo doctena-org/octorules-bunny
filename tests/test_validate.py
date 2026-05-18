@@ -199,6 +199,28 @@ class TestAction:
         for a in ("block", "log", "challenge", "allow", "bypass"):
             assert_no_lint(validate_rules([_custom(action=a)], phase=_C), "BN100")
 
+    def test_bn100_invalid_access_list(self):
+        r = [_access_list(action="invalid")]
+        assert_lint(validate_rules(r, phase=_A), "BN100")
+
+    def test_all_valid_access_list_actions(self):
+        for a in ("allow", "block", "challenge", "log", "bypass"):
+            assert_no_lint(validate_rules([_access_list(action=a)], phase=_A), "BN100")
+
+    def test_bn100_access_list_suggestion_includes_all_values(self):
+        # Verify that the suggestion message contains all ACCESS_LIST_ACTION values
+        r = [_access_list(action="invalid")]
+        results = validate_rules(r, phase=_A)
+        assert len(results) == 1
+        assert results[0].rule_id == "BN100"
+        # The suggestion should list the valid ACCESS_LIST_ACTION values
+        suggestion = results[0].suggestion
+        assert "allow" in suggestion
+        assert "block" in suggestion
+        assert "challenge" in suggestion
+        assert "log" in suggestion
+        assert "bypass" in suggestion
+
 
 # ---------------------------------------------------------------------------
 # BN101 — Invalid operator

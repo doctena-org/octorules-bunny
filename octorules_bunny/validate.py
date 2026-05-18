@@ -7,6 +7,7 @@ from octorules.linter.engine import LintResult, Severity
 from octorules.reserved_ips import is_reserved
 
 from octorules_bunny._enums import (
+    ACCESS_LIST_ACTION,
     ACCESS_LIST_TYPE,
     ACTION,
     BLOCKTIME,
@@ -1000,7 +1001,7 @@ def _validate_access_list(rule: dict, results: list[LintResult], phase: str) -> 
     action = rule.get("action", "")
     if not action:
         results.append(_result("BN003", Severity.ERROR, "Access list missing 'action'", phase, ref))
-    elif isinstance(action, str) and action not in ACTION:
+    elif isinstance(action, str) and action not in ACCESS_LIST_ACTION:
         results.append(
             _result(
                 "BN100",
@@ -1008,7 +1009,7 @@ def _validate_access_list(rule: dict, results: list[LintResult], phase: str) -> 
                 f"Invalid action {action!r}",
                 phase,
                 ref,
-                suggestion=f"Valid: {sorted(ACTION)}",
+                suggestion=f"Valid: {sorted(ACCESS_LIST_ACTION)}",
             )
         )
 
