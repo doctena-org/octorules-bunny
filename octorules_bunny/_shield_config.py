@@ -15,6 +15,7 @@ from octorules.registration import idempotent_registration
 
 from octorules_bunny._config_base import ConfigChange, ConfigFormatter, ConfigPlan, diff_flat_dicts
 from octorules_bunny._enums import (
+    DDOS_SENSITIVITY,
     EXECUTION_MODE,
     SENSITIVITY,
 )
@@ -65,7 +66,9 @@ def normalize_shield_config(
         for k in ("dDoSShieldSensitivity", "dDoSExecutionMode", "dDoSChallengeWindow")
     ):
         result["ddos"] = {
-            "shield_sensitivity": SENSITIVITY.resolve(shield_zone.get("dDoSShieldSensitivity", 0)),
+            "shield_sensitivity": DDOS_SENSITIVITY.resolve(
+                shield_zone.get("dDoSShieldSensitivity", 0)
+            ),
             "execution_mode": EXECUTION_MODE.resolve(shield_zone.get("dDoSExecutionMode", 0)),
             "challenge_window": shield_zone.get("dDoSChallengeWindow", 0),
         }
@@ -149,7 +152,7 @@ def denormalize_ddos_config(config: dict) -> dict:
     _MAP = {
         "shield_sensitivity": (
             "dDoSShieldSensitivity",
-            lambda v: SENSITIVITY.unresolve(v),
+            lambda v: DDOS_SENSITIVITY.unresolve(v),
         ),
         "execution_mode": ("dDoSExecutionMode", lambda v: EXECUTION_MODE.unresolve(v)),
         "challenge_window": ("dDoSChallengeWindow", lambda v: v),
@@ -404,6 +407,7 @@ def _apply_managed_rules(zp, plans, scope, provider):
 # ---------------------------------------------------------------------------
 _VALID_EXECUTION_MODES = frozenset(EXECUTION_MODE)
 _VALID_SENSITIVITIES = frozenset(SENSITIVITY)
+_VALID_DDOS_SENSITIVITIES = frozenset(DDOS_SENSITIVITY)
 
 
 def _validate_shield_config(desired, zone_name, errors, lines):
@@ -443,7 +447,7 @@ def _validate_shield_config(desired, zone_name, errors, lines):
                     f"  {zone_name}/bunny_shield_config: invalid ddos.execution_mode {em!r}"
                 )
             ss = ddos.get("shield_sensitivity", "")
-            if ss and ss not in _VALID_SENSITIVITIES:
+            if ss and ss not in _VALID_DDOS_SENSITIVITIES:
                 errors.append(
                     f"  {zone_name}/bunny_shield_config: invalid ddos.shield_sensitivity {ss!r}"
                 )

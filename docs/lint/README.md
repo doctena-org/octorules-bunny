@@ -77,7 +77,7 @@ Suppressed findings are excluded from the report but counted in the summary line
 | [BN120](enums.md#bn120--overly-permissive-regex-pattern) | Overly-permissive regex pattern on `rx` operator | WARNING |
 | [BN122](transformations.md#bn122--redundant-lowercase-transformation) | Redundant `lowercase` transformation with case-insensitive operator | INFO |
 | [BN123](variable-subvalue.md#bn123--percent-encoded-literal-value) | Percent-encoded literal value on decoded URI variable | WARNING |
-| [BN124](condition.md#bn124--contains_word-with-whitespace) | `contains_word` operator with whitespace in value | WARNING |
+| [BN124](variable-subvalue.md#bn124--contains_word-with-whitespace) | `contains_word` operator with whitespace in value | WARNING |
 | [BN125](transformations.md#bn125--duplicate-transformation) | Duplicate transformation in same rule | WARNING |
 | [BN200](rate-limit.md#bn200--request_count-must-be-a-positive-integer) | request_count must be a positive integer | ERROR |
 | [BN201](rate-limit.md#bn201--invalid-timeframe-value) | Invalid timeframe value | ERROR |
@@ -135,12 +135,12 @@ Suppressed findings are excluded from the report but counted in the summary line
 | Category | BN Range | Rules | Details |
 |----------|----------|-------|--------|
 | Structure | BN001–BN011 | 10 | [structure.md](structure.md) |
-| Enum validation | BN100–BN109, BN120, BN520, BN549 | 13 | [enums.md](enums.md) |
-| Variable sub-value validation | BN115–BN124 | 7 | [variable-subvalue.md](variable-subvalue.md) |
+| Enum validation | BN100–BN109, BN120, BN520, BN521, BN549 | 13 | [enums.md](enums.md) |
+| Variable sub-value validation | BN115–BN117, BN119, BN123, BN124 | 6 | [variable-subvalue.md](variable-subvalue.md) |
 | Transformation checks | BN122, BN125 | 2 | [transformations.md](transformations.md) |
 | Rate limit | BN200–BN210 | 5 | [rate-limit.md](rate-limit.md) |
 | Access list | BN300–BN311 | 12 | [access-list.md](access-list.md) |
-| Condition validation | BN400–BN404, BN124 | 6 | [condition.md](condition.md) |
+| Condition validation | BN108, BN400–BN404 | 6 | [condition.md](condition.md) |
 | Cross-rule analysis | BN500–BN504 | 5 | [cross-rule.md](cross-rule.md) |
 | Best practice | BN600–BN602 | 3 | [best-practice.md](best-practice.md) |
 | Edge rules | BN700–BN715 | 15 | [edge-rule.md](edge-rule.md) |

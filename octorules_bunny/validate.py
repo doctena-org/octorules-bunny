@@ -4,6 +4,7 @@ import ipaddress
 import re
 
 from octorules.linter.engine import LintResult, Severity
+from octorules.linter.helpers import CATCH_ALL_CIDRS
 from octorules.reserved_ips import is_reserved
 
 from octorules_bunny._enums import (
@@ -143,7 +144,6 @@ _MAX_CHAINED_CONDITIONS = 10
 
 # Catch-all CIDR ranges (match everything) — flagged by BN311 and skipped
 # by BN307 to avoid double-firing against every other entry in the list.
-_CATCH_ALL_CIDRS = frozenset({"0.0.0.0/0", "::/0"})
 
 # BN120: overly permissive regex patterns that match too broadly
 _OVERLY_PERMISSIVE_PATTERNS = frozenset(
@@ -1029,7 +1029,7 @@ def _validate_access_list(rule: dict, results: list[LintResult], phase: str) -> 
         for entry in entries:
             # BN311: catch-all CIDR (runs before strict-vs-loose parse so it
             # fires cleanly regardless of parse outcome).
-            if entry in _CATCH_ALL_CIDRS:
+            if entry in CATCH_ALL_CIDRS:
                 results.append(
                     _result(
                         "BN311",
@@ -1100,7 +1100,7 @@ def _validate_access_list(rule: dict, results: list[LintResult], phase: str) -> 
         # efficient overlap detection to keep lint fast.  Skip catch-all
         # entries (0.0.0.0/0, ::/0); those are handled by BN311 and would
         # otherwise spam BN307 against every other entry.
-        overlap_nets = [n for n in valid_nets if str(n) not in _CATCH_ALL_CIDRS]
+        overlap_nets = [n for n in valid_nets if str(n) not in CATCH_ALL_CIDRS]
         v4_nets = sorted(
             (n for n in overlap_nets if n.version == 4),
             key=lambda n: (int(n.network_address), n.prefixlen),
@@ -1693,7 +1693,7 @@ def _validate_cross_rule_cidr_overlap(
 
         for entry in str(content).splitlines():
             entry = entry.strip()
-            if not entry or entry in _CATCH_ALL_CIDRS:
+            if not entry or entry in CATCH_ALL_CIDRS:
                 continue
             try:
                 net = ipaddress.ip_network(entry, strict=False)

@@ -8,6 +8,7 @@ from octorules_bunny._enums import (
     ACTION,
     BLOCKTIME,
     COUNTER_KEY,
+    DDOS_SENSITIVITY,
     EDGE_ACTION,
     EDGE_PATTERN_MATCH,
     EDGE_TRIGGER,
@@ -36,6 +37,7 @@ _ALL_MAPS = [
     (COUNTER_KEY, "counter_key", 8),
     (EXECUTION_MODE, "execution_mode", 3),
     (SENSITIVITY, "sensitivity", 4),
+    (DDOS_SENSITIVITY, "ddos_sensitivity", 5),
     (EDGE_ACTION, "edge_action", 35),
     (EDGE_TRIGGER, "edge_trigger", 14),
     (EDGE_PATTERN_MATCH, "edge_pattern_match", 3),
@@ -104,6 +106,49 @@ class TestEnumMapClass:
         r = repr(em)
         assert "EnumMap" in r
         assert "block" in r
+
+
+class TestApiContractMappings:
+    """Pin maps whose exact int values are an API contract.
+
+    These mirror the Shield OpenAPI schemas verbatim — a consistent-but-
+    wrong mapping round-trips internally and only breaks in production,
+    which is exactly how the pre-fix COUNTER_KEY shipped wrong values.
+    """
+
+    def test_counter_key_matches_waf_ratelimit_counter_key_type(self):
+        # WafRatelimitCounterKeyType (api.bunny.net/shield/docs/v1/swagger.json)
+        expected = {
+            0: "ip",
+            1: "host",
+            2: "country",
+            3: "city",
+            4: "asn",
+            5: "organization",
+            6: "ja4",
+            7: "ip_ja4",
+        }
+        for num, name in expected.items():
+            assert COUNTER_KEY.resolve(num) == name
+            assert COUNTER_KEY.unresolve(name) == num
+        assert len(COUNTER_KEY) == len(expected)
+
+    def test_ddos_sensitivity_matches_ddos_shield_sensitivity(self):
+        # DDoSShieldSensitivity: 0=Off 1=Low 2=Medium 3=High 4=Challenge
+        # (dashboard/docs name for 4 is "Extreme" / Always-On Mode).
+        expected = {0: "off", 1: "low", 2: "medium", 3: "high", 4: "extreme"}
+        for num, name in expected.items():
+            assert DDOS_SENSITIVITY.resolve(num) == name
+            assert DDOS_SENSITIVITY.unresolve(name) == num
+        assert len(DDOS_SENSITIVITY) == len(expected)
+
+    def test_sensitivity_matches_bot_detection_sensitivity(self):
+        # BotDetectionSensitivity: 0=Off 1=Low 2=Medium 3=High (no level 4)
+        expected = {0: "off", 1: "low", 2: "medium", 3: "high"}
+        for num, name in expected.items():
+            assert SENSITIVITY.resolve(num) == name
+            assert SENSITIVITY.unresolve(name) == num
+        assert len(SENSITIVITY) == len(expected)
 
     def test_bijective_requirement(self):
         """Duplicate string values should raise ValueError."""

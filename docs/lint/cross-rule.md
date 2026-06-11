@@ -36,7 +36,10 @@ The number of rules exceeds known plan tier limits:
 | Basic | 0 | 2 | 1 |
 | Advanced | 10 | 10 | 5 |
 | Business | 25 | 25 | 10 |
-| Enterprise | 50 | Unlimited | Unlimited |
+| Enterprise | Not published* | Not published* | Not published* |
+
+\* Bunny does not publish Enterprise tier limits ("contact sales"), so BN501
+never fires for Enterprise zones.
 
 The tier is auto-detected per-zone from the Shield API during zone resolution. When `plan` is set in the provider config, it serves as a fallback. When neither is available, BN501 warns for the lowest tier exceeded (e.g., if you have 3 rate-limit rules, it warns that the Basic tier limit of 2 is exceeded).
 

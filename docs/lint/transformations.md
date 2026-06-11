@@ -1,4 +1,4 @@
-## Transformation Checks (BN125)
+## Transformation Checks (BN122, BN125)
 
 ### BN122 — Redundant `lowercase` transformation
 

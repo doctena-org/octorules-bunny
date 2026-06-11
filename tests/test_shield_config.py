@@ -649,6 +649,29 @@ class TestValidateExtension:
         assert "execution_mode" in errors[0]
 
     def test_invalid_sensitivity(self):
+        # "extreme" is a real level (4) since the SENSITIVITY map gained it;
+        # use a name that genuinely doesn't exist.
+        desired = {
+            "bunny_shield_config": {
+                "bot_detection": {"ip_sensitivity": "maximum"},
+            }
+        }
+        errors: list[str] = []
+        _validate_shield_config(desired, "zone", errors, [])
+        assert len(errors) == 1
+
+    def test_extreme_ddos_sensitivity_is_valid(self):
+        desired = {
+            "bunny_shield_config": {
+                "ddos": {"shield_sensitivity": "extreme"},
+            }
+        }
+        errors: list[str] = []
+        _validate_shield_config(desired, "zone", errors, [])
+        assert errors == []
+
+    def test_extreme_bot_sensitivity_is_invalid(self):
+        # BotDetectionSensitivity is 0-3; "extreme" is DDoS-only.
         desired = {
             "bunny_shield_config": {
                 "bot_detection": {"ip_sensitivity": "extreme"},
@@ -1074,3 +1097,35 @@ class TestValidateWafAndUploadScanning:
         _validate_shield_config(desired, "zone", errors, [])
         assert len(errors) == 1
         assert "fingerprint_aggression" in errors[0]
+
+
+class TestExtremeSensitivity:
+    """DDoS sensitivity 4 (Extreme / Always-On Mode) round-trips by name.
+
+    The Shield OpenAPI splits sensitivity into DDoSShieldSensitivity (0-4)
+    and BotDetectionSensitivity (0-3). Level 4 previously didn't exist in
+    the mapping, so dashboard-set Extreme zones dumped as the raw string
+    '4' and YAML 'extreme' was sent to the API unmapped.
+    """
+
+    def test_resolve_extreme(self):
+        from octorules_bunny._enums import DDOS_SENSITIVITY
+
+        assert DDOS_SENSITIVITY.resolve(4) == "extreme"
+
+    def test_unresolve_extreme(self):
+        from octorules_bunny._enums import DDOS_SENSITIVITY
+
+        assert DDOS_SENSITIVITY.unresolve("extreme") == 4
+
+    def test_denormalize_ddos_extreme(self):
+        from octorules_bunny._shield_config import denormalize_ddos_config
+
+        payload = denormalize_ddos_config({"shield_sensitivity": "extreme"})
+        assert payload == {"dDoSShieldSensitivity": 4}
+
+    def test_bot_detection_has_no_extreme(self):
+        # BotDetectionSensitivity caps at 3 in the Shield OpenAPI schema.
+        from octorules_bunny._enums import SENSITIVITY
+
+        assert "extreme" not in SENSITIVITY

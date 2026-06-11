@@ -244,7 +244,7 @@ BN_RULE_METAS: tuple[RuleMeta, ...] = (
     BN115,
     BN116,
     BN117,
-    # BN1xx — Transformation
+    # BN1xx — Transformation (BN122, BN125) and value checks (BN123, BN124)
     BN122,
     BN123,
     BN124,

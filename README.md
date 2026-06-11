@@ -294,7 +294,10 @@ Bunny Shield WAF tier is **per-zone** (not account-wide). Set via the Bunny dash
 | Basic | 0 | 0 | 2 | 1 (1k entries) |
 | Advanced ($9.50/mo) | 1 | 10 | 10 | 5 (5k entries) |
 | Business ($49/mo) | 2 | 25 | 25 | 10 (7.5k entries) |
-| Enterprise | 3 | 50 | Unlimited | Unlimited |
+| Enterprise | 3 | Not published* | Not published* | Not published* |
+
+\* Bunny does not publish Enterprise tier limits ("contact sales"). The
+linter applies no tier caps to Enterprise zones.
 
 ## Linting
 

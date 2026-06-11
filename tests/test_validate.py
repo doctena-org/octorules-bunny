@@ -406,6 +406,24 @@ class TestRateLimit:
     def test_bn202_invalid_block_time(self):
         assert_lint(validate_rules([_rate_limit(block_time="99s")], phase=_R), "BN202")
 
+    @pytest.mark.parametrize(
+        "key",
+        ["ip", "host", "country", "city", "asn", "organization", "ja4", "ip_ja4"],
+    )
+    def test_bn203_accepts_api_counter_keys(self, key):
+        r = _rate_limit(counter_key_type=key)
+        assert_no_lint(validate_rules([r], phase=_R), "BN203")
+
+    @pytest.mark.parametrize(
+        "key",
+        # The pre-fix vocabulary: these names never existed in the Shield
+        # API and silently mapped to different counter keys.
+        ["path", "header", "cookie", "query", "body", "fingerprint", "global"],
+    )
+    def test_bn203_rejects_pre_fix_counter_keys(self, key):
+        r = _rate_limit(counter_key_type=key)
+        assert_lint(validate_rules([r], phase=_R), "BN203")
+
     def test_bn203_invalid_counter_key(self):
         r = _rate_limit(counter_key_type="invalid")
         assert_lint(validate_rules([r], phase=_R), "BN203")

@@ -252,16 +252,19 @@ ACCESS_LIST_TYPE = EnumMap(
 # ---------------------------------------------------------------------------
 # Rate limit counter key types
 # ---------------------------------------------------------------------------
+# Mirrors the Shield OpenAPI `WafRatelimitCounterKeyType` schema
+# (api.bunny.net/shield/docs/v1/swagger.json): 0=IP 1=Host 2=Country
+# 3=City 4=ASN 5=Organization 6=JA4 7=IP_JA4.
 COUNTER_KEY = EnumMap(
     {
         0: "ip",
-        1: "path",
-        2: "header",
-        3: "cookie",
-        4: "query",
-        5: "body",
-        6: "fingerprint",
-        7: "global",
+        1: "host",
+        2: "country",
+        3: "city",
+        4: "asn",
+        5: "organization",
+        6: "ja4",
+        7: "ip_ja4",
     }
 )
 
@@ -270,7 +273,14 @@ COUNTER_KEY = EnumMap(
 # ---------------------------------------------------------------------------
 EXECUTION_MODE = EnumMap({0: "off", 1: "log", 2: "block"})
 
+# Bot detection sensitivity: the Shield OpenAPI `BotDetectionSensitivity`
+# schema is 0-3 only (Off/Low/Medium/High).
 SENSITIVITY = EnumMap({0: "off", 1: "low", 2: "medium", 3: "high"})
+
+# DDoS shield sensitivity: the Shield OpenAPI `DDoSShieldSensitivity`
+# schema is 0-4; level 4 is "Extreme" / Always-On Mode in the dashboard
+# and docs (the API varname for 4 is "Challenge").
+DDOS_SENSITIVITY = EnumMap({0: "off", 1: "low", 2: "medium", 3: "high", 4: "extreme"})
 
 
 # ---------------------------------------------------------------------------

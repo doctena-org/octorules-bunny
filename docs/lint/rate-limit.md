@@ -64,7 +64,7 @@ or when `block_time` is absent:
 
 **Severity:** ERROR
 
-The `counter_key_type` must be one of: `ip`, `path`, `header`, `cookie`, `query`, `body`, `fingerprint`, `global`. Also fires when the `counter_key_type` field is entirely missing from a rate limit rule.
+The `counter_key_type` must be one of: `ip`, `host`, `country`, `city`, `asn`, `organization`, `ja4`, `ip_ja4` (mirroring the Shield API's `WafRatelimitCounterKeyType` enum). Also fires when the `counter_key_type` field is entirely missing from a rate limit rule.
 
 **Triggers on:**
 

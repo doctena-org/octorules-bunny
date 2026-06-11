@@ -1,4 +1,4 @@
-## Variable Sub-Value Validation (BN115–BN124, BN521)
+## Variable Sub-Value Validation (BN115–BN117, BN119, BN123, BN124, BN521)
 
 ### BN115 — Variable requires variable_value
 
@@ -89,6 +89,8 @@ conditions:
 
 A condition uses a percent-encoded literal (e.g., `%2F` for `/`, `%20` for space) on a decoded URI variable (`request_uri`, `request_filename`, `request_basename`). These variables are already decoded, so the encoded literal will never match. Use the decoded form instead, or switch to `request_uri_raw` if matching the encoded form is intentional.
 
+> **Note:** Bunny does not document which variables are percent-decoded before matching. The decoded-variable set this check uses follows the `request_uri` vs `request_uri_raw` naming convention — an assumption, not verified against the live Shield engine.
+
 **Triggers on:**
 
 ```yaml
@@ -116,6 +118,8 @@ Or use `request_uri_raw` if matching the encoded form:
 **Severity:** WARNING
 
 The `contains_word` operator matches at word boundaries. A value containing whitespace (spaces, tabs, newlines) can never match because `contains_word` cannot span multiple words while respecting boundary semantics. Use `contains` for substring matching or re-examine the intent.
+
+> **Note:** Bunny does not document `contains_word`'s boundary semantics. This check encodes the conventional word-boundary interpretation of the operator — it is an assumption, not verified against the live Shield engine. If you confirm a whitespace value matching in production, suppress with `# octorules:disable=BN124` and report it.
 
 **Triggers on:**
 
