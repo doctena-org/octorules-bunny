@@ -135,8 +135,8 @@ Suppressed findings are excluded from the report but counted in the summary line
 | Category | BN Range | Rules | Details |
 |----------|----------|-------|--------|
 | Structure | BN001–BN011 | 10 | [structure.md](structure.md) |
-| Enum validation | BN100–BN109, BN120, BN520, BN521, BN549 | 13 | [enums.md](enums.md) |
-| Variable sub-value validation | BN115–BN117, BN119, BN123, BN124 | 6 | [variable-subvalue.md](variable-subvalue.md) |
+| Enum validation | BN100–BN109, BN120, BN520, BN549 | 13 | [enums.md](enums.md) |
+| Variable sub-value validation | BN115–BN117, BN119, BN123, BN124, BN521 | 7 | [variable-subvalue.md](variable-subvalue.md) |
 | Transformation checks | BN122, BN125 | 2 | [transformations.md](transformations.md) |
 | Rate limit | BN200–BN210 | 5 | [rate-limit.md](rate-limit.md) |
 | Access list | BN300–BN311 | 12 | [access-list.md](access-list.md) |
