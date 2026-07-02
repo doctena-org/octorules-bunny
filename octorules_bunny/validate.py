@@ -4,7 +4,14 @@ import ipaddress
 import re
 
 from octorules.linter.engine import LintResult, Severity
-from octorules.linter.helpers import CATCH_ALL_CIDRS
+from octorules.linter.helpers import (
+    CATCH_ALL_CIDRS,
+    find_overlapping_cidrs,
+    normalize_host_bits,
+)
+from octorules.linter.helpers import (
+    lint_result as _result,
+)
 from octorules.reserved_ips import is_reserved
 
 from octorules_bunny._enums import (
@@ -206,25 +213,89 @@ _REQUIRES_SUBVALUE = frozenset({"request_headers", "request_cookies"})
 # (single source of truth across all providers; see core v0.26.0).
 
 
-def _result(
+def _check_enum_field(
+    value: object,
+    enum_set: frozenset,
     rule_id: str,
-    severity: Severity,
-    message: str,
+    field_name: str,
+    missing_msg: str,
+    invalid_msg_prefix: str,
     phase: str,
-    ref: str = "",
-    *,
-    field: str = "",
-    suggestion: str = "",
-) -> LintResult:
-    return LintResult(
-        rule_id=rule_id,
-        severity=severity,
-        message=message,
-        phase=phase,
-        ref=ref,
-        field=field,
-        suggestion=suggestion,
-    )
+    ref: str,
+    results: list[LintResult],
+) -> None:
+    """Check for missing or invalid enum-valued field.
+
+    missing_msg: literal message when field is missing (e.g. "Missing 'timeframe'")
+    invalid_msg_prefix: prefix for invalid message (e.g. "Invalid timeframe");
+                        {value!r} will be appended
+    """
+    if not value:
+        results.append(_result(rule_id, Severity.ERROR, missing_msg, phase, ref, field=field_name))
+    elif isinstance(value, str) and value not in enum_set:
+        results.append(
+            _result(
+                rule_id,
+                Severity.ERROR,
+                f"{invalid_msg_prefix} {value!r}",
+                phase,
+                ref,
+                field=field_name,
+                suggestion=f"Valid: {sorted(enum_set)}",
+            )
+        )
+
+
+def _check_reserved_ip(
+    entry: str, entry_type: str, phase: str, ref: str, results: list[LintResult]
+) -> None:
+    """Check if an IP/CIDR is private/reserved and append BN305 if so.
+
+    entry_type: one of "IP address", "IP range" (for the message).
+    """
+    priv_desc = is_reserved(entry)
+    if priv_desc:
+        results.append(
+            _result(
+                "BN305",
+                Severity.WARNING,
+                f"Private/reserved {entry_type}: {entry!r} ({priv_desc})",
+                phase,
+                ref,
+                field="content",
+            )
+        )
+
+
+def _check_duplicates_case_insensitive(
+    entries: list[str],
+    rule_id: str,
+    msg_template: str,
+    phase: str,
+    ref: str,
+    results: list[LintResult],
+) -> None:
+    """Check for case-insensitive duplicates using normalization.
+
+    msg_template: template like "Duplicate X in access list: {key}" where {key}
+                  is replaced with the normalized (lowercased) entry.
+    """
+    seen: set[str] = set()
+    for entry in entries:
+        normalized = entry.strip().lower()
+        if normalized in seen:
+            results.append(
+                _result(
+                    rule_id,
+                    Severity.WARNING,
+                    msg_template.format(key=normalized),
+                    phase,
+                    ref,
+                    field="content",
+                )
+            )
+        else:
+            seen.add(normalized)
 
 
 def _condition_key(cond: dict) -> tuple[str, str, str, str]:
@@ -852,41 +923,31 @@ def _validate_rate_limit_rule(rule: dict, results: list[LintResult], phase: str)
 
     # BN201: timeframe
     tf = rule.get("timeframe")
-    if not tf:
-        results.append(
-            _result("BN201", Severity.ERROR, "Missing 'timeframe'", phase, ref, field="timeframe")
-        )
-    elif isinstance(tf, str) and tf not in TIMEFRAME:
-        results.append(
-            _result(
-                "BN201",
-                Severity.ERROR,
-                f"Invalid timeframe {tf!r}",
-                phase,
-                ref,
-                field="timeframe",
-                suggestion=f"Valid: {sorted(TIMEFRAME)}",
-            )
-        )
+    _check_enum_field(
+        tf,
+        TIMEFRAME,
+        "BN201",
+        "timeframe",
+        "Missing 'timeframe'",
+        "Invalid timeframe",
+        phase,
+        ref,
+        results,
+    )
 
     # BN202: block_time
     bt = rule.get("block_time")
-    if not bt:
-        results.append(
-            _result("BN202", Severity.ERROR, "Missing 'block_time'", phase, ref, field="block_time")
-        )
-    elif isinstance(bt, str) and bt not in BLOCKTIME:
-        results.append(
-            _result(
-                "BN202",
-                Severity.ERROR,
-                f"Invalid block_time {bt!r}",
-                phase,
-                ref,
-                field="block_time",
-                suggestion=f"Valid: {sorted(BLOCKTIME)}",
-            )
-        )
+    _check_enum_field(
+        bt,
+        BLOCKTIME,
+        "BN202",
+        "block_time",
+        "Missing 'block_time'",
+        "Invalid block_time",
+        phase,
+        ref,
+        results,
+    )
 
     # BN210: very short block_time
     if bt == "30s":
@@ -903,29 +964,17 @@ def _validate_rate_limit_rule(rule: dict, results: list[LintResult], phase: str)
 
     # BN203: counter_key_type
     ck = rule.get("counter_key_type")
-    if not ck:
-        results.append(
-            _result(
-                "BN203",
-                Severity.ERROR,
-                "Missing 'counter_key_type'",
-                phase,
-                ref,
-                field="counter_key_type",
-            )
-        )
-    elif isinstance(ck, str) and ck not in COUNTER_KEY:
-        results.append(
-            _result(
-                "BN203",
-                Severity.ERROR,
-                f"Invalid counter_key_type {ck!r}",
-                phase,
-                ref,
-                field="counter_key_type",
-                suggestion=f"Valid: {sorted(COUNTER_KEY)}",
-            )
-        )
+    _check_enum_field(
+        ck,
+        COUNTER_KEY,
+        "BN203",
+        "counter_key_type",
+        "Missing 'counter_key_type'",
+        "Invalid counter_key_type",
+        phase,
+        ref,
+        results,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1044,46 +1093,25 @@ def _validate_access_list(rule: dict, results: list[LintResult], phase: str) -> 
                 net_strict = ipaddress.ip_network(entry, strict=True)
                 valid_nets.append(net_strict)
                 # BN305: private/reserved ranges
-                priv_desc = is_reserved(entry)
-                if priv_desc:
-                    results.append(
-                        _result(
-                            "BN305",
-                            Severity.WARNING,
-                            f"Private/reserved IP range: {entry!r} ({priv_desc})",
-                            phase,
-                            ref,
-                            field="content",
-                        )
-                    )
+                _check_reserved_ip(entry, "IP range", phase, ref, results)
             except ValueError:
                 # BN306: CIDR has host bits set
-                try:
+                normalized = normalize_host_bits(entry)
+                if normalized:
                     net_loose = ipaddress.ip_network(entry, strict=False)
                     valid_nets.append(net_loose)
                     results.append(
                         _result(
                             "BN306",
                             Severity.WARNING,
-                            f"CIDR has host bits set: {entry!r} (did you mean {net_loose}?)",
+                            f"CIDR has host bits set: {entry!r} (did you mean {normalized}?)",
                             phase,
                             ref,
                             field="content",
                         )
                     )
-                    priv_desc = is_reserved(entry)
-                    if priv_desc:
-                        results.append(
-                            _result(
-                                "BN305",
-                                Severity.WARNING,
-                                f"Private/reserved IP range: {entry!r} ({priv_desc})",
-                                phase,
-                                ref,
-                                field="content",
-                            )
-                        )
-                except ValueError:
+                    _check_reserved_ip(entry, "IP range", phase, ref, results)
+                else:
                     results.append(
                         _result(
                             "BN302",
@@ -1101,34 +1129,19 @@ def _validate_access_list(rule: dict, results: list[LintResult], phase: str) -> 
         # entries (0.0.0.0/0, ::/0); those are handled by BN311 and would
         # otherwise spam BN307 against every other entry.
         overlap_nets = [n for n in valid_nets if str(n) not in CATCH_ALL_CIDRS]
-        v4_nets = sorted(
-            (n for n in overlap_nets if n.version == 4),
-            key=lambda n: (int(n.network_address), n.prefixlen),
-        )
-        v6_nets = sorted(
-            (n for n in overlap_nets if n.version == 6),
-            key=lambda n: (int(n.network_address), n.prefixlen),
-        )
-        for sorted_group in (v4_nets, v6_nets):
-            active: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
-            for net in sorted_group:
-                # Pop networks whose range we've passed.
-                while active and int(active[-1].broadcast_address) < int(net.network_address):
-                    active.pop()
-                if active:
-                    parent = active[-1]
-                    if net != parent:
-                        results.append(
-                            _result(
-                                "BN307",
-                                Severity.WARNING,
-                                f"Overlapping CIDRs: {parent} and {net}",
-                                phase,
-                                ref,
-                                field="content",
-                            )
-                        )
-                active.append(net)
+        overlap_cidrs = [(str(n), n) for n in overlap_nets]
+        for _val, net, _parent_val, parent_net in find_overlapping_cidrs(overlap_cidrs):
+            if net != parent_net:  # Skip exact duplicates (handled by BN309)
+                results.append(
+                    _result(
+                        "BN307",
+                        Severity.WARNING,
+                        f"Overlapping CIDRs: {parent_net} and {net}",
+                        phase,
+                        ref,
+                        field="content",
+                    )
+                )
 
         # BN309: duplicate CIDRs (normalised so 10.0.0.1/24 == 10.0.0.0/24)
         seen_cidrs: set[str] = set()
@@ -1152,33 +1165,11 @@ def _validate_access_list(rule: dict, results: list[LintResult], phase: str) -> 
         for entry in entries:
             try:
                 ipaddress.ip_address(entry)
-                priv_desc = is_reserved(entry)
-                if priv_desc:
-                    results.append(
-                        _result(
-                            "BN305",
-                            Severity.WARNING,
-                            f"Private/reserved IP address: {entry!r} ({priv_desc})",
-                            phase,
-                            ref,
-                            field="content",
-                        )
-                    )
+                _check_reserved_ip(entry, "IP address", phase, ref, results)
             except ValueError:
                 try:
                     ipaddress.ip_network(entry, strict=False)
-                    priv_desc = is_reserved(entry)
-                    if priv_desc:
-                        results.append(
-                            _result(
-                                "BN305",
-                                Severity.WARNING,
-                                f"Private/reserved IP range: {entry!r} ({priv_desc})",
-                                phase,
-                                ref,
-                                field="content",
-                            )
-                        )
+                    _check_reserved_ip(entry, "IP range", phase, ref, results)
                 except ValueError:
                     results.append(
                         _result(
@@ -1192,41 +1183,20 @@ def _validate_access_list(rule: dict, results: list[LintResult], phase: str) -> 
                     )
 
         # BN309: duplicate IP entries (IPv6 lowercased for case-insensitive match)
-        seen_ips: set[str] = set()
-        for entry in entries:
-            normalized = entry.strip().lower()
-            if normalized in seen_ips:
-                results.append(
-                    _result(
-                        "BN309",
-                        Severity.WARNING,
-                        f"Duplicate IP in access list: {normalized}",
-                        phase,
-                        ref,
-                        field="content",
-                    )
-                )
-            else:
-                seen_ips.add(normalized)
+        _check_duplicates_case_insensitive(
+            entries, "BN309", "Duplicate IP in access list: {key}", phase, ref, results
+        )
 
     elif list_type == "organization":
         # BN310: duplicate organization entries (case-insensitive)
-        seen_orgs: set[str] = set()
-        for entry in entries:
-            normalized = entry.strip().lower()
-            if normalized in seen_orgs:
-                results.append(
-                    _result(
-                        "BN310",
-                        Severity.WARNING,
-                        f"Duplicate organization entry in access list: {normalized}",
-                        phase,
-                        ref,
-                        field="content",
-                    )
-                )
-            else:
-                seen_orgs.add(normalized)
+        _check_duplicates_case_insensitive(
+            entries,
+            "BN310",
+            "Duplicate organization entry in access list: {key}",
+            phase,
+            ref,
+            results,
+        )
 
     elif list_type == "asn":
         for entry in entries:
@@ -1294,10 +1264,6 @@ _EDGE_RULE_FIELDS = frozenset(
         "trigger_matching_type",
         "triggers",
     }
-)
-
-_EDGE_TRIGGER_FIELDS = frozenset(
-    {"type", "pattern_matching_type", "pattern_matches", "parameter_1"}
 )
 
 

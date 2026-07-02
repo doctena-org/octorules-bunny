@@ -1,9 +1,9 @@
 """Bunny Shield WAF lint plugin — orchestrates all Bunny-specific linter checks."""
 
-from collections.abc import Iterator
 from typing import Any
 
 from octorules.linter.engine import LintContext, LintResult, Severity
+from octorules.linter.helpers import find_duplicates_by_key, iter_provider_phases
 from octorules.phases import PHASE_BY_NAME
 
 from octorules_bunny._phases import BUNNY_PHASE_NAMES
@@ -48,35 +48,6 @@ _PLAN_LIMITS: dict[str, dict[str, int]] = {
 
 
 # ---------------------------------------------------------------------------
-# Phase iteration helper
-# ---------------------------------------------------------------------------
-def _iter_phases(
-    rules_data: dict[str, Any],
-    ctx: LintContext,
-    *,
-    skip_suffixes: tuple[str, ...] = (),
-) -> Iterator[tuple[str, list]]:
-    """Yield ``(phase_name, rules)`` for Bunny phases matching *ctx*.
-
-    Filters out non-Bunny phases, unregistered phases, phases excluded by
-    ``ctx.phase_filter``, non-list values, and phases ending with any of
-    *skip_suffixes*.
-    """
-    for phase_name, rules in rules_data.items():
-        if phase_name not in BUNNY_PHASE_NAMES:
-            continue
-        if phase_name not in PHASE_BY_NAME:
-            continue
-        if ctx.phase_filter and phase_name not in ctx.phase_filter:
-            continue
-        if not isinstance(rules, list):
-            continue
-        if skip_suffixes and any(phase_name.endswith(s) for s in skip_suffixes):
-            continue
-        yield phase_name, rules
-
-
-# ---------------------------------------------------------------------------
 # Cross-phase checks
 # ---------------------------------------------------------------------------
 _WAF_SKIP = ("access_list_rules", "edge_rules")
@@ -84,26 +55,27 @@ _WAF_SKIP = ("access_list_rules", "edge_rules")
 
 def _check_duplicate_conditions(rules_data: dict[str, Any], ctx: LintContext) -> None:
     """BN500: Detect duplicate conditions across rules in the same phase."""
-    for phase_name, rules in _iter_phases(rules_data, ctx, skip_suffixes=_WAF_SKIP):
-        seen: dict[str, list[str]] = {}
+    for phase_name, rules in iter_provider_phases(
+        rules_data, ctx, BUNNY_PHASE_NAMES, skip_suffixes=_WAF_SKIP
+    ):
+        pairs = []
         for rule in rules:
             conditions = rule.get("conditions", [])
             if not conditions:
                 continue
             ref = str(rule.get("ref", ""))
             key = tuple(_condition_key(c) for c in conditions)
-            seen.setdefault(key, []).append(ref)
+            pairs.append((key, ref))
 
-        for _, refs in seen.items():
-            if len(refs) > 1:
-                ctx.add(
-                    LintResult(
-                        rule_id="BN500",
-                        severity=Severity.WARNING,
-                        message=f"Duplicate conditions in rules: {', '.join(refs)}",
-                        phase=phase_name,
-                    )
+        for _, refs in find_duplicates_by_key(pairs).items():
+            ctx.add(
+                LintResult(
+                    rule_id="BN500",
+                    severity=Severity.WARNING,
+                    message=f"Duplicate conditions in rules: {', '.join(refs)}",
+                    phase=phase_name,
                 )
+            )
 
 
 def _check_cross_phase_dup_refs(rules_data: dict[str, Any], ctx: LintContext) -> None:
@@ -116,7 +88,7 @@ def _check_cross_phase_dup_refs(rules_data: dict[str, Any], ctx: LintContext) ->
     """
     # Collect (ref, phase) pairs across all Bunny phases.
     ref_to_phases: dict[str, list[str]] = {}
-    for phase_name, rules in _iter_phases(rules_data, ctx):
+    for phase_name, rules in iter_provider_phases(rules_data, ctx, BUNNY_PHASE_NAMES):
         for rule in rules:
             if not isinstance(rule, dict):
                 continue
@@ -150,7 +122,7 @@ def _check_plan_tier_limits(rules_data: dict[str, Any], ctx: LintContext) -> Non
     """
     tier = ctx.plan_tier.lower()
 
-    for phase_name, rules in _iter_phases(rules_data, ctx):
+    for phase_name, rules in iter_provider_phases(rules_data, ctx, BUNNY_PHASE_NAMES):
         count = len(rules)
 
         if tier in _PLAN_LIMITS:
@@ -279,7 +251,9 @@ def _check_unreachable_rules(rules_data: dict[str, Any], ctx: LintContext) -> No
     condition (matches all traffic) and a terminating action, all subsequent
     enabled rules in that phase are unreachable.
     """
-    for phase_name, rules in _iter_phases(rules_data, ctx, skip_suffixes=_WAF_SKIP):
+    for phase_name, rules in iter_provider_phases(
+        rules_data, ctx, BUNNY_PHASE_NAMES, skip_suffixes=_WAF_SKIP
+    ):
         found_terminating = False
         terminating_ref = ""
         for rule in rules:
