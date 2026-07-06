@@ -13,7 +13,13 @@ import logging
 
 from octorules.registration import idempotent_registration
 
-from octorules_bunny._config_base import ConfigChange, ConfigFormatter, ConfigPlan, diff_flat_dicts
+from octorules_bunny._config_base import (
+    ConfigChange,
+    ConfigFormatter,
+    ConfigPlan,
+    diff_flat_dicts,
+    section_desired,
+)
 from octorules_bunny._enums import (
     DDOS_SENSITIVITY,
     EXECUTION_MODE,
@@ -349,9 +355,7 @@ def _apply_shield_config(zp, plans, scope, provider):
                 continue
 
             if change.section == "bot_detection":
-                bot_desired = {
-                    c.field: c.desired for c in plan.changes if c.section == "bot_detection"
-                }
+                bot_desired = section_desired(plan, "bot_detection")
                 if bot_desired:
                     payload = denormalize_bot_config(bot_desired)
                     provider.update_bot_detection_config(scope, payload)
@@ -359,7 +363,7 @@ def _apply_shield_config(zp, plans, scope, provider):
                 sections_done.add("bot_detection")
 
             elif change.section == "ddos":
-                ddos_desired = {c.field: c.desired for c in plan.changes if c.section == "ddos"}
+                ddos_desired = section_desired(plan, "ddos")
                 if ddos_desired:
                     payload = denormalize_ddos_config(ddos_desired)
                     provider.update_shield_zone_config(scope, payload)
@@ -367,7 +371,7 @@ def _apply_shield_config(zp, plans, scope, provider):
                 sections_done.add("ddos")
 
             elif change.section == "waf":
-                waf_desired = {c.field: c.desired for c in plan.changes if c.section == "waf"}
+                waf_desired = section_desired(plan, "waf")
                 if waf_desired:
                     payload = denormalize_waf_settings(waf_desired)
                     provider.update_shield_zone_config(scope, payload)
@@ -375,9 +379,7 @@ def _apply_shield_config(zp, plans, scope, provider):
                 sections_done.add("waf")
 
             elif change.section == "upload_scanning":
-                us_desired = {
-                    c.field: c.desired for c in plan.changes if c.section == "upload_scanning"
-                }
+                us_desired = section_desired(plan, "upload_scanning")
                 if us_desired:
                     payload = denormalize_upload_scanning(us_desired)
                     provider.update_upload_scanning_config(scope, payload)
@@ -385,9 +387,7 @@ def _apply_shield_config(zp, plans, scope, provider):
                 sections_done.add("upload_scanning")
 
             elif change.section == "managed_rules":
-                managed_desired = {
-                    c.field: c.desired for c in plan.changes if c.section == "managed_rules"
-                }
+                managed_desired = section_desired(plan, "managed_rules")
                 if managed_desired:
                     payload = denormalize_managed_rules(managed_desired)
                     provider.update_shield_zone_config(scope, payload)

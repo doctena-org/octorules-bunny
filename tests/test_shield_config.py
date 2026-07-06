@@ -145,7 +145,8 @@ class TestDiffShieldConfig:
         plan = diff_shield_config(current, desired)
         assert plan.has_changes
         assert len(plan.changes) == 1
-        assert plan.changes[0].field == "execution_mode"
+        assert plan.changes[0].field == "bot_detection.execution_mode"
+        assert plan.changes[0].leaf == "execution_mode"
         assert plan.changes[0].current == "log"
         assert plan.changes[0].desired == "block"
 
@@ -172,7 +173,7 @@ class TestDiffManagedRules:
         desired = {"disabled": ["1", "2"]}
         plan = diff_managed_rules(current, desired)
         assert plan.has_changes
-        assert plan.changes[0].field == "disabled"
+        assert plan.changes[0].field == "managed_rules.disabled"
 
 
 # ---------------------------------------------------------------------------
@@ -425,13 +426,11 @@ class TestShieldConfigFormatter:
         changes = result[0]["changes"]
         assert len(changes) == 2
         # First change
-        assert changes[0]["section"] == "bot_detection"
-        assert changes[0]["field"] == "execution_mode"
+        assert changes[0]["field"] == "bot_detection.execution_mode"
         assert changes[0]["current"] == "log"
         assert changes[0]["desired"] == "block"
         # Second change
-        assert changes[1]["section"] == "ddos"
-        assert changes[1]["field"] == "challenge_window"
+        assert changes[1]["field"] == "ddos.challenge_window"
         assert changes[1]["current"] == 300
         assert changes[1]["desired"] == 600
 
@@ -458,8 +457,8 @@ class TestShieldConfigFormatter:
         )
         result = fmt.format_json([plan1, plan2])
         assert len(result) == 2
-        assert result[0]["changes"][0]["section"] == "bot_detection"
-        assert result[1]["changes"][0]["section"] == "managed_rules"
+        assert result[0]["changes"][0]["field"] == "bot_detection.execution_mode"
+        assert result[1]["changes"][0]["field"] == "managed_rules.disabled"
 
     # -- format_markdown ----------------------------------------------------
 

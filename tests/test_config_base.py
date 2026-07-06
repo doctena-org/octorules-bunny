@@ -67,7 +67,7 @@ class TestConfigFormatter:
         result = fmt.format_json([self._make_plan()])
         assert len(result) == 1
         assert len(result[0]["changes"]) == 1
-        assert result[0]["changes"][0]["field"] == "f1"
+        assert result[0]["changes"][0]["field"] == "sec.f1"
 
     def test_format_markdown(self):
         fmt = ConfigFormatter("test_config")

@@ -196,6 +196,50 @@ bunny_pullzone_security:
   logging_ip_anonymization_type: 1  # 0=none, 1=one octet, 2=two octets
 ```
 
+### Nested Zone-File Format
+
+All Bunny sections can be nested under a single `bunny:` block for cleaner organization (new in v0.7.0):
+
+```yaml
+# rules/my-cdn.yaml
+bunny:
+  waf_custom_rules:
+    - ref: Block SQLi
+      action: block
+      severity: error
+      description: Block SQL injection
+      conditions:
+        - variable: request_body
+          operator: detect_sqli
+      transformations:
+        - lowercase
+        - url_decode
+
+  waf_rate_limit_rules:
+    - ref: API rate limit
+      action: block
+      severity: warning
+      request_count: 100
+      timeframe: 1m
+      block_time: 5m
+      counter_key_type: ip
+      conditions:
+        - variable: request_uri
+          operator: begins_with
+          value: /api/
+
+  shield_config:
+    bot_detection:
+      execution_mode: log
+      ip_sensitivity: medium
+    waf:
+      enabled: true
+      execution_mode: block
+      learning_mode: false
+```
+
+The flat spelling (e.g. `bunny_waf_custom_rules:` at zone level) is deprecated.
+
 ## Phases
 
 | Phase | YAML key | Description |

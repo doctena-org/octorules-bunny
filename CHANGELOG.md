@@ -7,8 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Zone files can nest all bunny.net sections under a single `bunny:` block; flat spelling is deprecated.
+
 ### Changed
-- Minimum `octorules` dependency: `>=0.30.0`.
+- Minimum `octorules` dependency: `>=0.32.0`.
+- Plan JSON entries for `bunny_shield_config` and `bunny_pullzone_security` now render the section as part of `field` (e.g. `waf.enabled`) instead of a separate `section` key.
+
+### Removed
+- The audit IP extractor no longer falls back to the legacy `action` field on edge rules; use `action_type`.
 
 ## [0.6.0] - 2026-06-11
 

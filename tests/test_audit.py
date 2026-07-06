@@ -181,20 +181,20 @@ class TestEdgeRuleExtraction:
         }
         assert _extract_ips(rules_data, "bunny_edge_rules") == []
 
-    def test_action_falls_back_to_action_field(self):
-        """If action_type is absent (legacy YAML), fall back to action."""
+    def test_action_type_required(self):
+        """If action_type is absent, action is empty (no legacy fallback)."""
         rules_data = {
             "bunny_edge_rules": [
                 {
                     "ref": "legacy",
-                    "action": "block",  # no action_type
+                    "action": "block",  # no action_type; fallback removed
                     "triggers": [{"type": "remote_ip", "pattern_matches": ["10.0.0.0/8"]}],
                 }
             ]
         }
         results = _extract_ips(rules_data, "bunny_edge_rules")
         assert len(results) == 1
-        assert results[0].action == "block"
+        assert results[0].action == ""  # Empty because action_type missing
 
     def test_malformed_triggers_dont_crash(self):
         rules_data = {

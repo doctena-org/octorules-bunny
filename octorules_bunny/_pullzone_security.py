@@ -14,7 +14,12 @@ import logging
 
 from octorules.registration import idempotent_registration
 
-from octorules_bunny._config_base import ConfigChange, ConfigFormatter, ConfigPlan
+from octorules_bunny._config_base import (
+    ConfigChange,
+    ConfigFormatter,
+    ConfigPlan,
+    section_desired,
+)
 
 log = logging.getLogger(__name__)
 
@@ -166,7 +171,7 @@ def _apply_pullzone_security(zp, plans, scope, provider):
         if not isinstance(plan, ConfigPlan) or not plan.has_changes:
             continue
 
-        desired_values = {c.field: c.desired for c in plan.changes if c.has_changes}
+        desired_values = section_desired(plan, "pullzone_security")
         if desired_values:
             provider.update_pullzone_security(scope, desired_values)
             synced.append("bunny_pullzone_security")

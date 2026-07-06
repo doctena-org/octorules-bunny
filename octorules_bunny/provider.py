@@ -375,6 +375,7 @@ class BunnyShieldProvider:
     ``BUNNY_API_KEY`` environment variable).
     """
 
+    NAMESPACE = "bunny"
     SUPPORTS = frozenset({"zone_discovery"})
 
     def __init__(

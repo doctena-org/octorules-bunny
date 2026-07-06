@@ -83,7 +83,7 @@ class TestDiff:
         desired = {"VPN Providers": {"enabled": True, "action": "block"}}
         plan = diff_curated_lists(current, desired)
         assert plan.has_changes
-        names = {c.field for c in plan.changes if c.has_changes}
+        names = {c.leaf for c in plan.changes if c.has_changes}
         assert "VPN Providers" in names
 
     def test_detects_action_change(self):
@@ -176,6 +176,27 @@ class TestValidate:
 # Apply
 # ---------------------------------------------------------------------------
 class TestApply:
+    def test_synced_label_uses_bare_list_name(self):
+        """Regression: ConfigChange.field carries the joined section path
+        ("curated_threat_lists.VPN Providers"); sync labels must use the
+        bare list name via .leaf, not the joined field."""
+        from octorules_bunny._config_base import ConfigChange
+        from octorules_bunny._curated_lists import _apply_curated_lists
+
+        plan = ConfigPlan(
+            changes=[
+                ConfigChange(
+                    section="curated_threat_lists",
+                    field="VPN Providers",
+                    current={"enabled": False, "action": "log", "_config_id": 100},
+                    desired={"enabled": True, "action": "block"},
+                ),
+            ]
+        )
+        synced, error = _apply_curated_lists(MagicMock(), [plan], _scope(), MagicMock())
+        assert error is None
+        assert synced == ["bunny_curated_threat_lists:VPN Providers"]
+
     def test_applies_config_changes(self):
         from octorules_bunny._config_base import ConfigChange
         from octorules_bunny._curated_lists import _apply_curated_lists

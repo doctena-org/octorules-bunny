@@ -159,7 +159,8 @@ class TestDiffPullZoneSecurity:
         plan = diff_pullzone_security(current, desired)
         assert plan.has_changes
         assert len(plan.changes) == 1
-        assert plan.changes[0].field == "blocked_ips"
+        assert plan.changes[0].field == "pullzone_security.blocked_ips"
+        assert plan.changes[0].leaf == "blocked_ips"
         assert plan.changes[0].current == "1.2.3.4"
         assert plan.changes[0].desired == "1.2.3.4\n5.6.7.8"
 
@@ -168,7 +169,7 @@ class TestDiffPullZoneSecurity:
         desired = {"cors_enabled": True}
         plan = diff_pullzone_security(current, desired)
         assert plan.has_changes
-        assert plan.changes[0].field == "cors_enabled"
+        assert plan.changes[0].field == "pullzone_security.cors_enabled"
 
     def test_multiple_changes(self):
         current = {"blocked_ips": [], "cors_enabled": False, "block_post_requests": False}
@@ -376,10 +377,10 @@ class TestPullZoneSecurityFormatter:
         assert "changes" in result[0]
         changes = result[0]["changes"]
         assert len(changes) == 2
-        assert changes[0]["field"] == "blocked_ips"
+        assert changes[0]["field"] == "pullzone_security.blocked_ips"
         assert changes[0]["current"] == []
         assert changes[0]["desired"] == ["10.0.0.1"]
-        assert changes[1]["field"] == "cors_enabled"
+        assert changes[1]["field"] == "pullzone_security.cors_enabled"
         assert changes[1]["current"] is False
         assert changes[1]["desired"] is True
 

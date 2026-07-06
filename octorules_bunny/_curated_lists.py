@@ -134,7 +134,7 @@ def _apply_curated_lists(zp, plans, scope, provider):
         for change in plan.changes:
             if not change.has_changes:
                 continue
-            name = change.field
+            name = change.leaf
             cur = change.current
             des = change.desired
             config_id = cur.get("_config_id") if isinstance(cur, dict) else None

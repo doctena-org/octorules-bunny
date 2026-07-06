@@ -70,7 +70,7 @@ def _extract_ips(rules_data: dict, phase_name: str) -> list[RuleIPInfo]:
         # under "action_type" (block / redirect / set_header / …); use that as
         # the audit action string for ip-shadow and zone-drift comparisons.
         elif phase_name == "bunny_edge_rules":
-            edge_action = str(rule.get("action_type", "")) or action
+            edge_action = str(rule.get("action_type", ""))
             ip_ranges: list[str] = []
             for trigger in rule.get("triggers", []) or []:
                 if not isinstance(trigger, dict):
