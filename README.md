@@ -79,126 +79,7 @@ phase and key. Copy it as a starting point.
 
 ## Zone File Example
 
-```yaml
-# rules/my-cdn.yaml
-bunny_waf_custom_rules:
-  - ref: Block SQLi
-    action: block
-    severity: error
-    description: Detect SQL injection in request body
-    conditions:
-      - variable: request_body
-        operator: detect_sqli
-    transformations:
-      - lowercase
-      - url_decode
-
-  - ref: Block admin from CN
-    action: block
-    severity: error
-    description: Block access to admin panel from China
-    conditions:
-      - variable: request_uri
-        operator: begins_with
-        value: /admin
-      - variable: geo
-        variable_value: COUNTRY_CODE
-        operator: str_eq
-        value: CN
-
-bunny_waf_rate_limit_rules:
-  - ref: API rate limit
-    action: block
-    severity: warning
-    description: Rate limit API endpoints
-    request_count: 100
-    timeframe: 1m
-    block_time: 5m
-    counter_key_type: ip
-    conditions:
-      - variable: request_uri
-        operator: begins_with
-        value: /api/
-
-bunny_waf_access_list_rules:
-  - ref: blocked-countries
-    type: country
-    action: block
-    enabled: true
-    content: |
-      CN
-      RU
-
-bunny_edge_rules:
-  - ref: Force HTTPS
-    enabled: true
-    description: Force HTTPS
-    action_type: force_ssl
-    action_parameter_1: ""
-    action_parameter_2: ""
-    trigger_matching_type: all
-    triggers:
-      - type: url
-        pattern_matching_type: any
-        pattern_matches:
-          - "http://*"
-
-bunny_waf_managed_rules:
-  disabled:
-    - "941100"
-  log_only:
-    - "930100"
-
-bunny_shield_config:
-  bot_detection:
-    execution_mode: log
-    request_integrity_sensitivity: medium
-    ip_sensitivity: medium
-    fingerprint_sensitivity: high
-    complex_fingerprinting: false
-  ddos:
-    shield_sensitivity: medium
-    execution_mode: log
-    challenge_window: 300
-  waf:
-    enabled: true
-    execution_mode: block
-    learning_mode: false
-    request_body_limit_action: 1
-    response_body_limit_action: 2
-    whitelabel_response_pages: true
-    realtime_threat_intelligence_enabled: false
-    request_header_logging_enabled: true
-    request_ignored_headers:
-      - Authorization
-      - Cookie
-  upload_scanning:
-    enabled: true
-    csam_scanning_mode: 1
-    antivirus_scanning_mode: 1
-
-bunny_curated_threat_lists:
-  VPN Providers:
-    enabled: true
-    action: block
-  TOR Exit Nodes:
-    enabled: true
-    action: challenge
-  AbuseIPDB:
-    enabled: true
-    action: log
-
-bunny_pullzone_security:
-  blocked_ips:
-    - "198.51.100.99"
-  blocked_countries: []
-  block_post_requests: false
-  logging_ip_anonymization_type: 1  # 0=none, 1=one octet, 2=two octets
-```
-
-### Nested Zone-File Format
-
-All Bunny sections can be nested under a single `bunny:` block for cleaner organization (new in v0.7.0):
+All Bunny sections nest under a single `bunny:` block:
 
 ```yaml
 # rules/my-cdn.yaml
@@ -207,7 +88,7 @@ bunny:
     - ref: Block SQLi
       action: block
       severity: error
-      description: Block SQL injection
+      description: Detect SQL injection in request body
       conditions:
         - variable: request_body
           operator: detect_sqli
@@ -215,10 +96,24 @@ bunny:
         - lowercase
         - url_decode
 
+    - ref: Block admin from CN
+      action: block
+      severity: error
+      description: Block access to admin panel from China
+      conditions:
+        - variable: request_uri
+          operator: begins_with
+          value: /admin
+        - variable: geo
+          variable_value: COUNTRY_CODE
+          operator: str_eq
+          value: CN
+
   waf_rate_limit_rules:
     - ref: API rate limit
       action: block
       severity: warning
+      description: Rate limit API endpoints
       request_count: 100
       timeframe: 1m
       block_time: 5m
@@ -228,35 +123,99 @@ bunny:
           operator: begins_with
           value: /api/
 
+  waf_access_list_rules:
+    - ref: blocked-countries
+      type: country
+      action: block
+      enabled: true
+      content: |
+        CN
+        RU
+
+  edge_rules:
+    - ref: Force HTTPS
+      enabled: true
+      description: Force HTTPS
+      action_type: force_ssl
+      action_parameter_1: ""
+      action_parameter_2: ""
+      trigger_matching_type: all
+      triggers:
+        - type: url
+          pattern_matching_type: any
+          pattern_matches:
+            - "http://*"
+
+  waf_managed_rules:
+    disabled:
+      - "941100"
+    log_only:
+      - "930100"
+
   shield_config:
     bot_detection:
       execution_mode: log
+      request_integrity_sensitivity: medium
       ip_sensitivity: medium
+      fingerprint_sensitivity: high
+      complex_fingerprinting: false
+    ddos:
+      shield_sensitivity: medium
+      execution_mode: log
+      challenge_window: 300
     waf:
       enabled: true
       execution_mode: block
       learning_mode: false
-```
+      request_body_limit_action: 1
+      response_body_limit_action: 2
+      whitelabel_response_pages: true
+      realtime_threat_intelligence_enabled: false
+      request_header_logging_enabled: true
+      request_ignored_headers:
+        - Authorization
+        - Cookie
+    upload_scanning:
+      enabled: true
+      csam_scanning_mode: 1
+      antivirus_scanning_mode: 1
 
-The flat spelling (e.g. `bunny_waf_custom_rules:` at zone level) is deprecated.
+  curated_threat_lists:
+    VPN Providers:
+      enabled: true
+      action: block
+    TOR Exit Nodes:
+      enabled: true
+      action: challenge
+    AbuseIPDB:
+      enabled: true
+      action: log
+
+  pullzone_security:
+    blocked_ips:
+      - "198.51.100.99"
+    blocked_countries: []
+    block_post_requests: false
+    logging_ip_anonymization_type: 1  # 0=none, 1=one octet, 2=two octets
+```
 
 ## Phases
 
-| Phase | YAML key | Description |
+| Phase | Phase name | Description |
 |-------|----------|-------------|
-| Custom WAF | `bunny_waf_custom_rules` | Custom WAF rules with conditions, operators, and actions |
-| Rate Limit | `bunny_waf_rate_limit_rules` | Rate limiting rules with thresholds and block times |
-| Access List | `bunny_waf_access_list_rules` | IP/CIDR/ASN/Country/Org/JA4 block/allow lists |
-| Edge Rules | `bunny_edge_rules` | CDN-level edge rules (redirects, header manipulation, force SSL, blocking) |
+| Custom WAF | `bunny.waf_custom_rules` | Custom WAF rules with conditions, operators, and actions |
+| Rate Limit | `bunny.waf_rate_limit_rules` | Rate limiting rules with thresholds and block times |
+| Access List | `bunny.waf_access_list_rules` | IP/CIDR/ASN/Country/Org/JA4 block/allow lists |
+| Edge Rules | `bunny.edge_rules` | CDN-level edge rules (redirects, header manipulation, force SSL, blocking) |
 
 ## Non-Phase Sections
 
-| YAML key | Description |
+| Section | Description |
 |----------|-------------|
-| `bunny_waf_managed_rules` | Disable or log-only individual managed WAF rules |
-| `bunny_shield_config` | Bot detection and DDoS protection configuration |
-| `bunny_pullzone_security` | Pull zone security: blocked IPs/countries/referrers, token auth, CORS |
-| `bunny_curated_threat_lists` | Enable/disable Bunny's curated threat intelligence lists (VPN, Tor, AbuseIPDB, FireHOL, etc.) |
+| `bunny.waf_managed_rules` | Disable or log-only individual managed WAF rules |
+| `bunny.shield_config` | Bot detection and DDoS protection configuration |
+| `bunny.pullzone_security` | Pull zone security: blocked IPs/countries/referrers, token auth, CORS |
+| `bunny.curated_threat_lists` | Enable/disable Bunny's curated threat intelligence lists (VPN, Tor, AbuseIPDB, FireHOL, etc.) |
 
 ## Actions
 

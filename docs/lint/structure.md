@@ -9,12 +9,13 @@ Every rule must have a `ref` field that uniquely identifies it within the phase.
 **Triggers on:**
 
 ```yaml
-bunny_waf_custom_rules:
+bunny:
+  waf_custom_rules:
   - action: block
     conditions:
-      - variable: request_uri
-        operator: contains
-        value: /admin
+    - variable: request_uri
+      operator: contains
+      value: /admin
 ```
 
 **Fix:** Add a `ref` field:
@@ -37,13 +38,16 @@ Two or more rules in the same phase share the same `ref` value. Each ref must be
 **Triggers on:**
 
 ```yaml
-bunny_waf_custom_rules:
+bunny:
+  waf_custom_rules:
   - ref: Block bots
     action: block
-    conditions: [...]
+    conditions:
+    - '...'
   - ref: Block bots
     action: challenge
-    conditions: [...]
+    conditions:
+    - '...'
 ```
 
 **Fix:** Use unique refs:
@@ -69,12 +73,13 @@ A required field is missing. Required fields depend on phase type:
 **Triggers on:**
 
 ```yaml
-bunny_waf_custom_rules:
+bunny:
+  waf_custom_rules:
   - ref: Incomplete rule
     conditions:
-      - variable: request_uri
-        operator: contains
-        value: /admin
+    - variable: request_uri
+      operator: contains
+      value: /admin
 ```
 
 **Fix:** Add the missing `action` field:
@@ -97,11 +102,13 @@ A field name is not recognized for the rule type. This usually indicates a typo.
 **Triggers on:**
 
 ```yaml
-bunny_waf_custom_rules:
+bunny:
+  waf_custom_rules:
   - ref: My rule
     action: block
     aciton: challenge
-    conditions: [...]
+    conditions:
+    - '...'
 ```
 
 **Fix:** Correct the field name or remove it.
@@ -137,8 +144,9 @@ element (e.g. a string or integer) is always an authoring mistake.
 **Triggers on:**
 
 ```yaml
-bunny_waf_custom_rules:
-  - "not a dict"         # <-- string instead of mapping
+bunny:
+  waf_custom_rules:
+  - not a dict
 ```
 
 **Fix:** Replace the scalar with a proper rule mapping.
@@ -154,19 +162,21 @@ rule entries under each phase.
 **Triggers on:**
 
 ```yaml
-bunny_waf_custom_rules: "not a list"
+bunny:
+  waf_custom_rules: not a list
 ```
 
 **Fix:** Use a proper list:
 
 ```yaml
-bunny_waf_custom_rules:
+bunny:
+  waf_custom_rules:
   - ref: Block admin
     action: block
     conditions:
-      - variable: request_uri
-        operator: contains
-        value: /admin
+    - variable: request_uri
+      operator: contains
+      value: /admin
 ```
 
 ---
@@ -180,13 +190,16 @@ A rule's `ref` appears in two or more Bunny phases. The API scopes refs per-phas
 **Triggers on:**
 
 ```yaml
-bunny_waf_custom_rules:
-  - ref: api-throttle  # same ref
-    ...
+bunny:
+  waf_custom_rules:
+    - ref: api-throttle  # same ref
+      action: block
+      conditions: [...]
 
-bunny_waf_rate_limit_rules:
-  - ref: api-throttle  # same ref
-    ...
+  waf_rate_limit_rules:
+    - ref: api-throttle  # same ref
+      action: block
+      conditions: [...]
 ```
 
 **Fix:** Use distinct refs per phase (e.g. `api-throttle-waf` and `api-throttle-rl`).

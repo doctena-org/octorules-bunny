@@ -50,7 +50,7 @@ class TestConfigFormatter:
         )
 
     def test_format_text(self):
-        fmt = ConfigFormatter("test_config")
+        fmt = ConfigFormatter()
         lines = fmt.format_text([self._make_plan()], use_color=False)
         assert len(lines) == 1
         assert "sec.f1" in lines[0]
@@ -58,52 +58,35 @@ class TestConfigFormatter:
         assert "'new'" in lines[0]
 
     def test_format_text_skips_no_change(self):
-        fmt = ConfigFormatter("test_config")
+        fmt = ConfigFormatter()
         lines = fmt.format_text([self._make_plan()], use_color=False)
         assert not any("f2" in line for line in lines)
 
     def test_format_json(self):
-        fmt = ConfigFormatter("test_config")
+        fmt = ConfigFormatter()
         result = fmt.format_json([self._make_plan()])
         assert len(result) == 1
         assert len(result[0]["changes"]) == 1
         assert result[0]["changes"][0]["field"] == "sec.f1"
 
     def test_format_markdown(self):
-        fmt = ConfigFormatter("test_config")
+        fmt = ConfigFormatter()
         lines = fmt.format_markdown([self._make_plan()], [])
         assert len(lines) == 1
         assert "sec.f1" in lines[0]
         assert "|" in lines[0]
 
     def test_format_html(self):
-        fmt = ConfigFormatter("test_config")
+        fmt = ConfigFormatter()
         lines: list[str] = []
         counts = fmt.format_html([self._make_plan()], lines)
         assert counts == (0, 0, 1, 0)  # adds, removes, modifies, errors
         assert any("Modify" in line for line in lines)
 
-    def test_format_report_with_drift(self):
-        fmt = ConfigFormatter("test_config")
-        phases_data: list[dict] = []
-        result = fmt.format_report([self._make_plan()], False, phases_data)
-        assert result is True  # zone_has_drift
-        assert len(phases_data) == 1
-        assert phases_data[0]["provider_id"] == "test_config"
-        assert phases_data[0]["modifies"] == 1
-
-    def test_format_report_no_drift(self):
-        fmt = ConfigFormatter("test_config")
-        p = ConfigPlan(changes=[ConfigChange(section="s", field="f", current=1, desired=1)])
-        phases_data: list[dict] = []
-        result = fmt.format_report([p], False, phases_data)
-        assert result is False
-        assert len(phases_data) == 0
-
     def test_format_text_empty_plans(self):
-        fmt = ConfigFormatter("x")
+        fmt = ConfigFormatter()
         assert fmt.format_text([], use_color=False) == []
 
     def test_format_json_empty_plans(self):
-        fmt = ConfigFormatter("x")
+        fmt = ConfigFormatter()
         assert fmt.format_json([]) == []

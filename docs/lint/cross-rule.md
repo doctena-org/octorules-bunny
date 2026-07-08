@@ -100,19 +100,20 @@ A rule is preceded by a rule that matches all traffic (single catch-all conditio
 **Triggers on:**
 
 ```yaml
-bunny_waf_custom_rules:
+bunny:
+  waf_custom_rules:
   - ref: catch all
     action: block
     conditions:
-      - variable: request_url
-        operator: contains
-        value: ""
+    - variable: request_url
+      operator: contains
+      value: ''
   - ref: specific rule
     action: block
     conditions:
-      - variable: request_url
-        operator: contains
-        value: "/admin"
+    - variable: request_url
+      operator: contains
+      value: /admin
 ```
 
 **Fix:** Reorder rules so the catch-all appears last, or add conditions to narrow its scope.
@@ -126,35 +127,39 @@ Two CIDR entries (within the same access list or across different access lists i
 **Triggers on:**
 
 ```yaml
-bunny_waf_access_list_rules:
-  - ref: "blocked-1"
+bunny:
+  waf_access_list_rules:
+  - ref: blocked-1
     type: cidr
     action: block
-    content: |
-      192.0.2.0/24
+    content: '192.0.2.0/24
+
       192.0.2.0/25  # overlaps with the /24 above
-  - ref: "blocked-2"
+
+      '
+  - ref: blocked-2
     type: cidr
     action: block
-    content: |
-      203.0.113.0/24
-      203.0.113.128/25  # overlaps with the /24 above
+    content: '203.0.113.0/24
+
+      203.0.113.128/25  # overlaps with the /24 above'
 ```
 
 **Fix:** Remove the redundant / overlapping CIDR or clarify the intent:
 
 ```yaml
-bunny_waf_access_list_rules:
-  - ref: "blocked-1"
+bunny:
+  waf_access_list_rules:
+  - ref: blocked-1
     type: cidr
     action: block
-    content: |
-      192.0.2.0/24
-  - ref: "blocked-2"
+    content: '192.0.2.0/24
+
+      '
+  - ref: blocked-2
     type: cidr
     action: block
-    content: |
-      203.0.113.0/24
+    content: 203.0.113.0/24
 ```
 
 ---

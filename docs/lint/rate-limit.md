@@ -9,7 +9,8 @@ The `request_count` field must be a positive integer (>= 1). Boolean values are 
 **Triggers on:**
 
 ```yaml
-bunny_waf_rate_limit_rules:
+bunny:
+  waf_rate_limit_rules:
   - ref: My rate limit
     request_count: 0
 ```

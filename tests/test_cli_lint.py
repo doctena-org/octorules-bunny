@@ -182,8 +182,10 @@ class TestSuppressionsHonored:
     def test_octorules_disable_suppresses_bn001(self, tmp_path):
         cfg = _write_config(
             tmp_path,
+            # File-wide: the ref-less rule triggers both BN001 and core's
+            # CORE007 (prepare requires a ref) — suppress both.
+            "# octorules:disable=BN001,CORE007\n"
             "bunny_waf_custom_rules:\n"
-            "  # octorules:disable=BN001\n"
             "  - action: block\n"
             "    conditions:\n"
             "      - variable: request_uri\n"
@@ -191,5 +193,5 @@ class TestSuppressionsHonored:
             "        value: /x\n",
         )
         rc = cmd_lint(cfg, ["zone"])
-        # BN001 is suppressed; remaining findings (if any) are not errors here.
+        # BN001/CORE007 are suppressed; remaining findings are not errors here.
         assert rc == 0

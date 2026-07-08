@@ -364,7 +364,7 @@ class TestShieldConfigFormatter:
     # -- format_text --------------------------------------------------------
 
     def test_format_text_with_changes(self):
-        fmt = ShieldConfigFormatter("bunny_shield_config")
+        fmt = ShieldConfigFormatter()
         plan = ShieldConfigPlan(
             changes=[
                 ShieldConfigChange("bot_detection", "execution_mode", "log", "block"),
@@ -384,7 +384,7 @@ class TestShieldConfigFormatter:
         assert "'high'" in lines[1]
 
     def test_format_text_skips_no_change(self):
-        fmt = ShieldConfigFormatter("bunny_shield_config")
+        fmt = ShieldConfigFormatter()
         plan = ShieldConfigPlan(
             changes=[
                 ShieldConfigChange("bot_detection", "execution_mode", "block", "block"),
@@ -393,12 +393,12 @@ class TestShieldConfigFormatter:
         assert fmt.format_text([plan], use_color=False) == []
 
     def test_format_text_empty_plans(self):
-        fmt = ShieldConfigFormatter("bunny_shield_config")
+        fmt = ShieldConfigFormatter()
         assert fmt.format_text([], use_color=False) == []
 
     def test_format_text_with_color(self):
         """With color enabled, output wraps in ANSI codes."""
-        fmt = ShieldConfigFormatter("bunny_shield_config")
+        fmt = ShieldConfigFormatter()
         plan = ShieldConfigPlan(
             changes=[
                 ShieldConfigChange("bot_detection", "execution_mode", "log", "block"),
@@ -413,7 +413,7 @@ class TestShieldConfigFormatter:
     # -- format_json --------------------------------------------------------
 
     def test_format_json_with_changes(self):
-        fmt = ShieldConfigFormatter("bunny_shield_config")
+        fmt = ShieldConfigFormatter()
         plan = ShieldConfigPlan(
             changes=[
                 ShieldConfigChange("bot_detection", "execution_mode", "log", "block"),
@@ -435,7 +435,7 @@ class TestShieldConfigFormatter:
         assert changes[1]["desired"] == 600
 
     def test_format_json_skips_no_change(self):
-        fmt = ShieldConfigFormatter("bunny_shield_config")
+        fmt = ShieldConfigFormatter()
         plan = ShieldConfigPlan(
             changes=[
                 ShieldConfigChange("bot_detection", "execution_mode", "block", "block"),
@@ -444,11 +444,11 @@ class TestShieldConfigFormatter:
         assert fmt.format_json([plan]) == []
 
     def test_format_json_empty_plans(self):
-        fmt = ShieldConfigFormatter("bunny_shield_config")
+        fmt = ShieldConfigFormatter()
         assert fmt.format_json([]) == []
 
     def test_format_json_multiple_plans(self):
-        fmt = ShieldConfigFormatter("bunny_shield_config")
+        fmt = ShieldConfigFormatter()
         plan1 = ShieldConfigPlan(
             changes=[ShieldConfigChange("bot_detection", "execution_mode", "log", "block")]
         )
@@ -463,7 +463,7 @@ class TestShieldConfigFormatter:
     # -- format_markdown ----------------------------------------------------
 
     def test_format_markdown_with_changes(self):
-        fmt = ShieldConfigFormatter("bunny_shield_config")
+        fmt = ShieldConfigFormatter()
         plan = ShieldConfigPlan(
             changes=[
                 ShieldConfigChange("bot_detection", "execution_mode", "log", "block"),
@@ -481,7 +481,7 @@ class TestShieldConfigFormatter:
         assert "ddos.shield_sensitivity" in lines[1]
 
     def test_format_markdown_skips_no_change(self):
-        fmt = ShieldConfigFormatter("bunny_shield_config")
+        fmt = ShieldConfigFormatter()
         plan = ShieldConfigPlan(
             changes=[
                 ShieldConfigChange("ddos", "challenge_window", 300, 300),
@@ -490,12 +490,12 @@ class TestShieldConfigFormatter:
         assert fmt.format_markdown([plan], pending_diffs=[]) == []
 
     def test_format_markdown_empty_plans(self):
-        fmt = ShieldConfigFormatter("bunny_shield_config")
+        fmt = ShieldConfigFormatter()
         assert fmt.format_markdown([], pending_diffs=[]) == []
 
     def test_format_markdown_escapes_pipes(self):
         """Pipe characters in values are escaped for markdown tables."""
-        fmt = ShieldConfigFormatter("bunny_shield_config")
+        fmt = ShieldConfigFormatter()
         plan = ShieldConfigPlan(
             changes=[
                 ShieldConfigChange("bot_detection", "execution_mode", "a|b", "c|d"),
@@ -509,7 +509,7 @@ class TestShieldConfigFormatter:
     # -- format_html --------------------------------------------------------
 
     def test_format_html_with_changes(self):
-        fmt = ShieldConfigFormatter("bunny_shield_config")
+        fmt = ShieldConfigFormatter()
         plan = ShieldConfigPlan(
             changes=[
                 ShieldConfigChange("bot_detection", "execution_mode", "log", "block"),
@@ -533,7 +533,7 @@ class TestShieldConfigFormatter:
         assert "Updates=2" in html
 
     def test_format_html_skips_no_change(self):
-        fmt = ShieldConfigFormatter("bunny_shield_config")
+        fmt = ShieldConfigFormatter()
         plan = ShieldConfigPlan(
             changes=[
                 ShieldConfigChange("bot_detection", "execution_mode", "block", "block"),
@@ -545,7 +545,7 @@ class TestShieldConfigFormatter:
         assert lines == []
 
     def test_format_html_empty_plans(self):
-        fmt = ShieldConfigFormatter("bunny_shield_config")
+        fmt = ShieldConfigFormatter()
         lines: list[str] = []
         result = fmt.format_html([], lines)
         assert result == (0, 0, 0, 0)
@@ -553,7 +553,7 @@ class TestShieldConfigFormatter:
 
     def test_format_html_escapes_special_chars(self):
         """HTML special characters in values are escaped."""
-        fmt = ShieldConfigFormatter("bunny_shield_config")
+        fmt = ShieldConfigFormatter()
         plan = ShieldConfigPlan(
             changes=[
                 ShieldConfigChange("bot_detection", "execution_mode", "<script>", "block"),
@@ -564,56 +564,6 @@ class TestShieldConfigFormatter:
         html = "\n".join(lines)
         assert "&lt;script&gt;" in html
         assert "<script>" not in html.replace("&lt;script&gt;", "")
-
-    # -- format_report ------------------------------------------------------
-
-    def test_format_report_with_drift(self):
-        fmt = ShieldConfigFormatter("bunny_shield_config")
-        plan = ShieldConfigPlan(
-            changes=[
-                ShieldConfigChange("bot_detection", "execution_mode", "log", "block"),
-                ShieldConfigChange("ddos", "shield_sensitivity", "low", "high"),
-            ]
-        )
-        phases_data: list[dict] = []
-        result = fmt.format_report([plan], zone_has_drift=False, phases_data=phases_data)
-        assert result is True
-        assert len(phases_data) == 1
-        entry = phases_data[0]
-        assert entry["phase"] == "shield_config"
-        assert entry["provider_id"] == "bunny_shield_config"
-        assert entry["status"] == "drifted"
-        assert entry["modifies"] == 2
-        assert entry["adds"] == 0
-        assert entry["removes"] == 0
-
-    def test_format_report_preserves_incoming_drift(self):
-        """zone_has_drift=True is preserved even when extension has no drift."""
-        fmt = ShieldConfigFormatter("bunny_shield_config")
-        plan = ShieldConfigPlan(
-            changes=[
-                ShieldConfigChange("bot_detection", "execution_mode", "block", "block"),
-            ]
-        )
-        phases_data: list[dict] = []
-        result = fmt.format_report([plan], zone_has_drift=True, phases_data=phases_data)
-        assert result is True
-        assert phases_data == []  # no extension entry since no changes
-
-    def test_format_report_no_drift(self):
-        fmt = ShieldConfigFormatter("bunny_shield_config")
-        phases_data: list[dict] = []
-        result = fmt.format_report([], zone_has_drift=False, phases_data=phases_data)
-        assert result is False
-        assert phases_data == []
-
-    def test_format_report_empty_plans_passes_through_drift(self):
-        """With empty plans, returns the incoming zone_has_drift unchanged."""
-        fmt = ShieldConfigFormatter("bunny_shield_config")
-        phases_data: list[dict] = []
-        result = fmt.format_report([], zone_has_drift=True, phases_data=phases_data)
-        assert result is True
-        assert phases_data == []
 
 
 # ---------------------------------------------------------------------------

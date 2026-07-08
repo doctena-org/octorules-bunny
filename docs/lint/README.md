@@ -11,14 +11,14 @@ These rules are registered automatically when `octorules-bunny` is installed. Th
 Add a `# octorules:disable=RULE` comment immediately before a rule to suppress a specific finding. Multiple rule IDs can be comma-separated.
 
 ```yaml
-bunny_waf_custom_rules:
-  # octorules:disable=BN010
+bunny:
+  waf_custom_rules:
   - ref: legacy-rule
     action: block
     conditions:
-      - variable: request_uri
-        operator: contains
-        value: /admin
+    - variable: request_uri
+      operator: contains
+      value: /admin
 ```
 
 **Multiple rules:**

@@ -46,9 +46,7 @@ def test_normalize_nested_bunny_format():
                     ],
                 }
             ],
-            "shield_config": {
-                "waf": {"enabled": True, "execution_mode": "block"}
-            },
+            "shield_config": {"waf": {"enabled": True, "execution_mode": "block"}},
         }
     }
 

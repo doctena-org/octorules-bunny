@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "octorules-bunny"
-version = "0.6.0"
+version = "0.7.0"
 description = "Bunny.net Shield WAF provider for octorules"
 license = "Apache-2.0"
 requires-python = ">=3.10"
@@ -48,6 +48,7 @@ Issues = "https://github.com/doctena-org/octorules-bunny/issues"
 bunny = "octorules_bunny:BunnyShieldProvider"
 
 [tool.setuptools.packages.find]
+include = ["octorules_bunny*"]
 
 [tool.ruff]
 target-version = "py310"

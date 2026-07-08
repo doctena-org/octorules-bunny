@@ -9,12 +9,13 @@ Every edge rule must have a valid `action_type`. Valid values: `block_request`, 
 **Triggers on:**
 
 ```yaml
-bunny_edge_rules:
+bunny:
+  edge_rules:
   - ref: My edge rule
     triggers:
-      - type: url
-        pattern_matches:
-          - "*.example.com"
+    - type: url
+      pattern_matches:
+      - '*.example.com'
 ```
 
 or:
@@ -185,14 +186,15 @@ Actions also requiring `action_parameter_2`: `redirect`, `set_response_header`, 
 **Triggers on:**
 
 ```yaml
-bunny_edge_rules:
+bunny:
+  edge_rules:
   - ref: bad redirect
     action_type: redirect
-    action_parameter_1: ""
+    action_parameter_1: ''
     triggers:
-      - type: url
-        pattern_matches:
-          - "*"
+    - type: url
+      pattern_matches:
+      - '*'
 ```
 
 **Fix:** Provide the required parameter(s) for the action type.
@@ -206,13 +208,14 @@ A `pattern_matches` entry is empty or whitespace-only. The Bunny API rejects the
 **Triggers on:**
 
 ```yaml
-bunny_edge_rules:
+bunny:
+  edge_rules:
   - ref: bad
     triggers:
-      - type: url
-        pattern_matches:
-          - "http://*"
-          - ""           # empty string — invalid
+    - type: url
+      pattern_matches:
+      - http://*
+      - ''
 ```
 
 **Fix:** Remove empty entries or replace with valid patterns.
@@ -341,11 +344,12 @@ Common valid codes: `301` (permanent), `302` (temporary), `303` (see other), `30
 **Triggers on:**
 
 ```yaml
-bunny_edge_rules:
+bunny:
+  edge_rules:
   - ref: bad redirect
     action_type: redirect
     action_parameter_1: https://example.com/new
-    action_parameter_2: "200"   # not a redirect code
+    action_parameter_2: '200'
 ```
 
 **Fix:** Use a status code in 300-399.

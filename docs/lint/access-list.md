@@ -9,8 +9,9 @@ The `type` must be one of: `ip`, `cidr`, `asn`, `country`, `organization`, `ja4`
 **Triggers on:**
 
 ```yaml
-bunny_waf_access_list_rules:
-  - ref: "1"
+bunny:
+  waf_access_list_rules:
+  - ref: '1'
     type: hostname
 ```
 

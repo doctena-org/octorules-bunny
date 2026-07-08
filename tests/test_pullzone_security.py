@@ -321,7 +321,7 @@ class TestPullZoneSecurityFormatter:
     # -- format_text --------------------------------------------------------
 
     def test_format_text_with_changes(self):
-        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
+        fmt = PullZoneSecurityFormatter()
         plan = PullZoneSecurityPlan(
             changes=[
                 PullZoneSecurityChange("pullzone_security", "blocked_ips", [], ["10.0.0.1"]),
@@ -337,7 +337,7 @@ class TestPullZoneSecurityFormatter:
         assert "pullzone_security.cors_enabled" in lines[1]
 
     def test_format_text_skips_no_change(self):
-        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
+        fmt = PullZoneSecurityFormatter()
         plan = PullZoneSecurityPlan(
             changes=[
                 PullZoneSecurityChange("pullzone_security", "blocked_ips", "x", "x"),
@@ -346,12 +346,12 @@ class TestPullZoneSecurityFormatter:
         assert fmt.format_text([plan], use_color=False) == []
 
     def test_format_text_empty_plans(self):
-        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
+        fmt = PullZoneSecurityFormatter()
         assert fmt.format_text([], use_color=False) == []
 
     def test_format_text_with_color(self):
         """With color enabled, output wraps in ANSI codes."""
-        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
+        fmt = PullZoneSecurityFormatter()
         plan = PullZoneSecurityPlan(
             changes=[
                 PullZoneSecurityChange("pullzone_security", "cors_enabled", False, True),
@@ -365,7 +365,7 @@ class TestPullZoneSecurityFormatter:
     # -- format_json --------------------------------------------------------
 
     def test_format_json_with_changes(self):
-        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
+        fmt = PullZoneSecurityFormatter()
         plan = PullZoneSecurityPlan(
             changes=[
                 PullZoneSecurityChange("pullzone_security", "blocked_ips", [], ["10.0.0.1"]),
@@ -385,7 +385,7 @@ class TestPullZoneSecurityFormatter:
         assert changes[1]["desired"] is True
 
     def test_format_json_skips_no_change(self):
-        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
+        fmt = PullZoneSecurityFormatter()
         plan = PullZoneSecurityPlan(
             changes=[
                 PullZoneSecurityChange("pullzone_security", "blocked_ips", "x", "x"),
@@ -394,11 +394,11 @@ class TestPullZoneSecurityFormatter:
         assert fmt.format_json([plan]) == []
 
     def test_format_json_empty_plans(self):
-        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
+        fmt = PullZoneSecurityFormatter()
         assert fmt.format_json([]) == []
 
     def test_format_json_multiple_plans(self):
-        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
+        fmt = PullZoneSecurityFormatter()
         plan1 = PullZoneSecurityPlan(
             changes=[PullZoneSecurityChange("pullzone_security", "blocked_ips", [], ["10.0.0.1"])]
         )
@@ -411,7 +411,7 @@ class TestPullZoneSecurityFormatter:
     # -- format_markdown ----------------------------------------------------
 
     def test_format_markdown_with_changes(self):
-        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
+        fmt = PullZoneSecurityFormatter()
         plan = PullZoneSecurityPlan(
             changes=[
                 PullZoneSecurityChange("pullzone_security", "blocked_ips", [], ["10.0.0.1"]),
@@ -427,7 +427,7 @@ class TestPullZoneSecurityFormatter:
         assert "pullzone_security.cors_enabled" in lines[1]
 
     def test_format_markdown_skips_no_change(self):
-        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
+        fmt = PullZoneSecurityFormatter()
         plan = PullZoneSecurityPlan(
             changes=[
                 PullZoneSecurityChange("pullzone_security", "blocked_ips", "x", "x"),
@@ -436,12 +436,12 @@ class TestPullZoneSecurityFormatter:
         assert fmt.format_markdown([plan], pending_diffs=[]) == []
 
     def test_format_markdown_empty_plans(self):
-        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
+        fmt = PullZoneSecurityFormatter()
         assert fmt.format_markdown([], pending_diffs=[]) == []
 
     def test_format_markdown_escapes_pipes(self):
         """Pipe characters in values are escaped for markdown tables."""
-        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
+        fmt = PullZoneSecurityFormatter()
         plan = PullZoneSecurityPlan(
             changes=[
                 PullZoneSecurityChange("pullzone_security", "blocked_ips", "a|b", "c|d"),
@@ -454,7 +454,7 @@ class TestPullZoneSecurityFormatter:
     # -- format_html --------------------------------------------------------
 
     def test_format_html_with_changes(self):
-        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
+        fmt = PullZoneSecurityFormatter()
         plan = PullZoneSecurityPlan(
             changes=[
                 PullZoneSecurityChange("pullzone_security", "blocked_ips", [], ["10.0.0.1"]),
@@ -475,7 +475,7 @@ class TestPullZoneSecurityFormatter:
         assert "Updates=2" in html
 
     def test_format_html_skips_no_change(self):
-        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
+        fmt = PullZoneSecurityFormatter()
         plan = PullZoneSecurityPlan(
             changes=[
                 PullZoneSecurityChange("pullzone_security", "blocked_ips", "x", "x"),
@@ -487,7 +487,7 @@ class TestPullZoneSecurityFormatter:
         assert lines == []
 
     def test_format_html_empty_plans(self):
-        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
+        fmt = PullZoneSecurityFormatter()
         lines: list[str] = []
         result = fmt.format_html([], lines)
         assert result == (0, 0, 0, 0)
@@ -495,7 +495,7 @@ class TestPullZoneSecurityFormatter:
 
     def test_format_html_escapes_special_chars(self):
         """HTML special characters in values are escaped."""
-        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
+        fmt = PullZoneSecurityFormatter()
         plan = PullZoneSecurityPlan(
             changes=[
                 PullZoneSecurityChange("pullzone_security", "blocked_ips", "<script>", "10.0.0.1"),
@@ -506,56 +506,6 @@ class TestPullZoneSecurityFormatter:
         html = "\n".join(lines)
         assert "&lt;script&gt;" in html
         assert "<script>" not in html.replace("&lt;script&gt;", "")
-
-    # -- format_report ------------------------------------------------------
-
-    def test_format_report_with_drift(self):
-        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
-        plan = PullZoneSecurityPlan(
-            changes=[
-                PullZoneSecurityChange("pullzone_security", "blocked_ips", [], ["10.0.0.1"]),
-                PullZoneSecurityChange("pullzone_security", "cors_enabled", False, True),
-            ]
-        )
-        phases_data: list[dict] = []
-        result = fmt.format_report([plan], zone_has_drift=False, phases_data=phases_data)
-        assert result is True
-        assert len(phases_data) == 1
-        entry = phases_data[0]
-        assert entry["phase"] == "pullzone_security"
-        assert entry["provider_id"] == "bunny_pullzone_security"
-        assert entry["status"] == "drifted"
-        assert entry["modifies"] == 2
-        assert entry["adds"] == 0
-        assert entry["removes"] == 0
-
-    def test_format_report_preserves_incoming_drift(self):
-        """zone_has_drift=True is preserved even when extension has no drift."""
-        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
-        plan = PullZoneSecurityPlan(
-            changes=[
-                PullZoneSecurityChange("pullzone_security", "blocked_ips", "x", "x"),
-            ]
-        )
-        phases_data: list[dict] = []
-        result = fmt.format_report([plan], zone_has_drift=True, phases_data=phases_data)
-        assert result is True
-        assert phases_data == []
-
-    def test_format_report_no_drift(self):
-        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
-        phases_data: list[dict] = []
-        result = fmt.format_report([], zone_has_drift=False, phases_data=phases_data)
-        assert result is False
-        assert phases_data == []
-
-    def test_format_report_empty_plans_passes_through_drift(self):
-        """With empty plans, returns the incoming zone_has_drift unchanged."""
-        fmt = PullZoneSecurityFormatter("bunny_pullzone_security")
-        phases_data: list[dict] = []
-        result = fmt.format_report([], zone_has_drift=True, phases_data=phases_data)
-        assert result is True
-        assert phases_data == []
 
 
 # ---------------------------------------------------------------------------

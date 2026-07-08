@@ -217,8 +217,6 @@ def register_curated_lists() -> None:
 
     register_plan_zone_hook(_prefetch_curated_lists, _finalize_curated_lists)
     register_apply_extension("bunny_curated_threat_lists", _apply_curated_lists)
-    register_format_extension(
-        "bunny_curated_threat_lists", ConfigFormatter("bunny_curated_threat_lists")
-    )
+    register_format_extension("bunny_curated_threat_lists", ConfigFormatter())
     register_validate_extension(_validate_curated_lists)
     register_dump_extension(_dump_curated_lists)

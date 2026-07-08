@@ -50,16 +50,12 @@ def section_desired(plan: SettingsPlan, section: str) -> dict:
 class ConfigFormatter(SettingsFormatter):
     """Formats config diffs for plan output.
 
-    Change fields already carry the section path, so the label prefix is
-    empty; report-mode phase strips the ``bunny_`` prefix from
-    *provider_id* (e.g. ``"bunny_shield_config"`` reports as
-    ``"shield_config"``).
+    Change fields already carry the section path (``waf.enabled``), so the
+    label prefix is empty.
     """
 
-    def __init__(self, provider_id: str) -> None:
+    def __init__(self) -> None:
         super().__init__(
             plan_type=ConfigPlan,
             prefix="",
-            phase=provider_id.removeprefix("bunny_"),
-            provider_id=provider_id,
         )
