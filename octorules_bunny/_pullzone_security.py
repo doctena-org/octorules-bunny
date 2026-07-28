@@ -270,13 +270,9 @@ class PullzoneSecurityExtension(ProviderExtension):
 def register_pullzone_security() -> None:
     """Register all pull zone security hooks with the core extension system."""
     from octorules.extensions import (
-        register_apply_extension,
         register_format_extension,
-        register_plan_zone_hook,
         register_validate_extension,
     )
 
-    register_plan_zone_hook(_prefetch_pullzone_security, _finalize_pullzone_security)
-    register_apply_extension("bunny.pullzone_security", _apply_pullzone_security)
     register_format_extension("bunny.pullzone_security", ConfigFormatter())
     register_validate_extension(_validate_pullzone_security)

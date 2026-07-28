@@ -602,15 +602,10 @@ class ManagedRulesExtension(ProviderExtension):
 def register_shield_config() -> None:
     """Register all shield config hooks with the core extension system."""
     from octorules.extensions import (
-        register_apply_extension,
         register_format_extension,
-        register_plan_zone_hook,
         register_validate_extension,
     )
 
-    register_plan_zone_hook(_prefetch_shield_config, _finalize_shield_config)
-    register_apply_extension("bunny.shield_config", _apply_shield_config)
-    register_apply_extension("bunny.waf_managed_rules", _apply_managed_rules)
     register_format_extension("bunny.shield_config", ConfigFormatter())
     register_format_extension("bunny.waf_managed_rules", ConfigFormatter())
     register_validate_extension(_validate_shield_config)

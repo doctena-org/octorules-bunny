@@ -234,13 +234,9 @@ class CuratedListsExtension(ProviderExtension):
 def register_curated_lists() -> None:
     """Register curated threat list hooks with the core extension system."""
     from octorules.extensions import (
-        register_apply_extension,
         register_format_extension,
-        register_plan_zone_hook,
         register_validate_extension,
     )
 
-    register_plan_zone_hook(_prefetch_curated_lists, _finalize_curated_lists)
-    register_apply_extension("bunny.curated_threat_lists", _apply_curated_lists)
     register_format_extension("bunny.curated_threat_lists", ConfigFormatter())
     register_validate_extension(_validate_curated_lists)
