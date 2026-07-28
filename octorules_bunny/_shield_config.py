@@ -563,7 +563,6 @@ class ShieldConfigExtension(ProviderExtension):
 
     section = "bunny.shield_config"
     extra_sections = ("bunny.waf_managed_rules",)
-    formatter = ConfigFormatter()
 
     def prefetch(self, desired, scope, provider):
         return _prefetch_shield_config(desired, scope, provider)
@@ -577,9 +576,6 @@ class ShieldConfigExtension(ProviderExtension):
     def dump(self, scope, provider):
         return _dump_shield_config(scope, provider)
 
-    def validate(self, desired, zone_name, errors, lines):
-        return _validate_shield_config(desired, zone_name, errors, lines)
-
 
 class ManagedRulesExtension(ProviderExtension):
     """Managed WAF rule toggles.
@@ -589,7 +585,6 @@ class ManagedRulesExtension(ProviderExtension):
     """
 
     section = "bunny.waf_managed_rules"
-    formatter = ConfigFormatter()
 
     def apply(self, zp, plans, scope, provider):
         return _apply_managed_rules(zp, plans, scope, provider)

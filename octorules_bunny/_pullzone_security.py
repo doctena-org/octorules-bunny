@@ -245,7 +245,6 @@ class PullzoneSecurityExtension(ProviderExtension):
     """Pull-zone security settings."""
 
     section = "bunny.pullzone_security"
-    formatter = ConfigFormatter()
 
     def prefetch(self, desired, scope, provider):
         return _prefetch_pullzone_security(desired, scope, provider)
@@ -258,9 +257,6 @@ class PullzoneSecurityExtension(ProviderExtension):
 
     def dump(self, scope, provider):
         return _dump_pullzone_security(scope, provider)
-
-    def validate(self, desired, zone_name, errors, lines):
-        return _validate_pullzone_security(desired, zone_name, errors, lines)
 
 
 # ---------------------------------------------------------------------------

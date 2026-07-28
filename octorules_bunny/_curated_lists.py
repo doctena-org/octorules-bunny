@@ -209,7 +209,6 @@ class CuratedListsExtension(ProviderExtension):
     """Curated threat lists."""
 
     section = "bunny.curated_threat_lists"
-    formatter = ConfigFormatter()
 
     def prefetch(self, desired, scope, provider):
         return _prefetch_curated_lists(desired, scope, provider)
@@ -222,9 +221,6 @@ class CuratedListsExtension(ProviderExtension):
 
     def dump(self, scope, provider):
         return _dump_curated_lists(scope, provider)
-
-    def validate(self, desired, zone_name, errors, lines):
-        return _validate_curated_lists(desired, zone_name, errors, lines)
 
 
 # ---------------------------------------------------------------------------
