@@ -178,7 +178,7 @@ def _validate_curated_lists(desired, zone_name, errors, lines):
 # ---------------------------------------------------------------------------
 # Dump
 # ---------------------------------------------------------------------------
-def _dump_curated_lists(scope, provider, out_dir):
+def _dump_curated_lists(scope, provider):
     """Export current curated threat list config to dump output."""
     from octorules.provider.exceptions import ProviderAuthError, ProviderError
 
@@ -209,7 +209,6 @@ def register_curated_lists() -> None:
     """Register curated threat list hooks with the core extension system."""
     from octorules.extensions import (
         register_apply_extension,
-        register_dump_extension,
         register_format_extension,
         register_plan_zone_hook,
         register_validate_extension,
@@ -219,4 +218,3 @@ def register_curated_lists() -> None:
     register_apply_extension("bunny_curated_threat_lists", _apply_curated_lists)
     register_format_extension("bunny_curated_threat_lists", ConfigFormatter())
     register_validate_extension(_validate_curated_lists)
-    register_dump_extension(_dump_curated_lists)

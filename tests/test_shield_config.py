@@ -667,7 +667,7 @@ class TestDumpExtension:
         }
         provider.get_bot_detection_config.return_value = {"executionMode": 2}
 
-        result = _dump_shield_config(_scope(), provider, None)
+        result = _dump_shield_config(_scope(), provider)
         assert "bunny_shield_config" in result
         assert "bunny_waf_managed_rules" in result
         assert result["bunny_waf_managed_rules"]["disabled"] == ["941100"]
@@ -677,7 +677,7 @@ class TestDumpExtension:
 
         provider = MagicMock()
         provider.get_shield_zone_config.side_effect = ProviderError("down")
-        result = _dump_shield_config(_scope(), provider, None)
+        result = _dump_shield_config(_scope(), provider)
         assert result is None
 
     def test_dump_empty_config(self):
@@ -685,7 +685,7 @@ class TestDumpExtension:
         provider.get_shield_zone_config.return_value = {}
         provider.get_bot_detection_config.return_value = {}
         provider.get_upload_scanning_config.return_value = {}
-        result = _dump_shield_config(_scope(), provider, None)
+        result = _dump_shield_config(_scope(), provider)
         # waf section with defaults is always included
         assert result is not None
         assert "bunny_shield_config" in result

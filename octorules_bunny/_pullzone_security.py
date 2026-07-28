@@ -221,7 +221,7 @@ def _validate_pullzone_security(desired, zone_name, errors, lines):
 # ---------------------------------------------------------------------------
 # Dump extension
 # ---------------------------------------------------------------------------
-def _dump_pullzone_security(scope, provider, out_dir):
+def _dump_pullzone_security(scope, provider):
     """Export current pull zone security config to dump output."""
     from octorules.provider.exceptions import ProviderAuthError, ProviderError
 
@@ -245,7 +245,6 @@ def register_pullzone_security() -> None:
     """Register all pull zone security hooks with the core extension system."""
     from octorules.extensions import (
         register_apply_extension,
-        register_dump_extension,
         register_format_extension,
         register_plan_zone_hook,
         register_validate_extension,
@@ -255,4 +254,3 @@ def register_pullzone_security() -> None:
     register_apply_extension("bunny_pullzone_security", _apply_pullzone_security)
     register_format_extension("bunny_pullzone_security", ConfigFormatter())
     register_validate_extension(_validate_pullzone_security)
-    register_dump_extension(_dump_pullzone_security)

@@ -513,7 +513,7 @@ def _validate_shield_config(desired, zone_name, errors, lines):
 # ---------------------------------------------------------------------------
 # Dump extension
 # ---------------------------------------------------------------------------
-def _dump_shield_config(scope, provider, out_dir):
+def _dump_shield_config(scope, provider):
     """Export current shield config and managed rules to dump output."""
     from octorules.provider.exceptions import ProviderAuthError, ProviderError
 
@@ -556,7 +556,6 @@ def register_shield_config() -> None:
     """Register all shield config hooks with the core extension system."""
     from octorules.extensions import (
         register_apply_extension,
-        register_dump_extension,
         register_format_extension,
         register_plan_zone_hook,
         register_validate_extension,
@@ -568,4 +567,3 @@ def register_shield_config() -> None:
     register_format_extension("bunny_shield_config", ConfigFormatter())
     register_format_extension("bunny_waf_managed_rules", ConfigFormatter())
     register_validate_extension(_validate_shield_config)
-    register_dump_extension(_dump_shield_config)

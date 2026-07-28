@@ -646,7 +646,7 @@ class TestDumpExtension:
             "cors_extensions": [".jpg"],
             "logging_ip_anonymization_type": 0,
         }
-        result = _dump_pullzone_security(_scope(), provider, None)
+        result = _dump_pullzone_security(_scope(), provider)
         assert "bunny_pullzone_security" in result
         assert result["bunny_pullzone_security"]["blocked_ips"] == "1.2.3.4"
         assert result["bunny_pullzone_security"]["cors_enabled"] is True
@@ -656,13 +656,13 @@ class TestDumpExtension:
 
         provider = MagicMock()
         provider.get_pullzone_security.side_effect = ProviderError("down")
-        result = _dump_pullzone_security(_scope(), provider, None)
+        result = _dump_pullzone_security(_scope(), provider)
         assert result is None
 
     def test_dump_empty_config(self):
         provider = MagicMock()
         provider.get_pullzone_security.return_value = {}
-        result = _dump_pullzone_security(_scope(), provider, None)
+        result = _dump_pullzone_security(_scope(), provider)
         assert result is None
 
 

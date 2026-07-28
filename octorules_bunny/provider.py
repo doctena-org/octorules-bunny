@@ -1042,3 +1042,27 @@ class BunnyShieldProvider:
     ) -> dict[str, dict]:
         """Bunny Shield does not support lists."""
         return {}
+
+    # --- Dump ---
+
+    def dump_extra_sections(self, scope: Scope) -> dict:
+        """Bunny Shield-owned settings sections for the dumped zone file.
+
+        Called only with this provider, so a section can never be requested
+        from a provider that cannot fetch it — the reason dump is a method
+        here and not an extension registry.
+        """
+        from octorules_bunny._curated_lists import _dump_curated_lists
+        from octorules_bunny._pullzone_security import _dump_pullzone_security
+        from octorules_bunny._shield_config import _dump_shield_config
+
+        result: dict = {}
+        for fn in (
+            _dump_shield_config,
+            _dump_pullzone_security,
+            _dump_curated_lists,
+        ):
+            data = fn(scope, self)
+            if data:
+                result.update(data)
+        return result
