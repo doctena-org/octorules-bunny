@@ -11,6 +11,7 @@ Shield in ``octorules_cloudflare/page_shield.py``.
 
 import logging
 
+from octorules.extensions import ProviderExtension
 from octorules.registration import idempotent_registration
 
 from octorules_bunny._config_base import (
@@ -546,6 +547,52 @@ def _dump_shield_config(scope, provider):
         result["bunny_waf_managed_rules"] = managed
 
     return result if result else None
+
+
+# ---------------------------------------------------------------------------
+# Extensions
+# ---------------------------------------------------------------------------
+class ShieldConfigExtension(ProviderExtension):
+    """Shield zone and bot-detection configuration.
+
+    One API fetch serves two sections, so ``bunny_waf_managed_rules`` is
+    declared as an extra section: the fetch must still run when a zone
+    configures only the managed rules.  ``finalize`` fills both plan
+    buckets; the sibling extension below owns applying the second one.
+    """
+
+    section = "bunny_shield_config"
+    extra_sections = ("bunny_waf_managed_rules",)
+    formatter = ConfigFormatter()
+
+    def prefetch(self, desired, scope, provider):
+        return _prefetch_shield_config(desired, scope, provider)
+
+    def finalize(self, zp, desired, scope, provider, ctx):
+        return _finalize_shield_config(zp, desired, scope, provider, ctx)
+
+    def apply(self, zp, plans, scope, provider):
+        return _apply_shield_config(zp, plans, scope, provider)
+
+    def dump(self, scope, provider):
+        return _dump_shield_config(scope, provider)
+
+    def validate(self, desired, zone_name, errors, lines):
+        return _validate_shield_config(desired, zone_name, errors, lines)
+
+
+class ManagedRulesExtension(ProviderExtension):
+    """Managed WAF rule toggles.
+
+    Planned by :class:`ShieldConfigExtension` — the two share one API
+    fetch — so this owns only the apply stage and its formatter.
+    """
+
+    section = "bunny_waf_managed_rules"
+    formatter = ConfigFormatter()
+
+    def apply(self, zp, plans, scope, provider):
+        return _apply_managed_rules(zp, plans, scope, provider)
 
 
 # ---------------------------------------------------------------------------

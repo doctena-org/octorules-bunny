@@ -25,6 +25,7 @@ Example::
 
 import logging
 
+from octorules.extensions import ProviderExtension
 from octorules.registration import idempotent_registration
 
 from octorules_bunny._config_base import ConfigChange, ConfigFormatter, ConfigPlan
@@ -199,6 +200,31 @@ def _dump_curated_lists(scope, provider):
         result[name] = {k: v for k, v in entry.items() if not k.startswith("_")}
 
     return {"bunny_curated_threat_lists": result} if result else None
+
+
+# ---------------------------------------------------------------------------
+# Extension
+# ---------------------------------------------------------------------------
+class CuratedListsExtension(ProviderExtension):
+    """Curated threat lists."""
+
+    section = "bunny_curated_threat_lists"
+    formatter = ConfigFormatter()
+
+    def prefetch(self, desired, scope, provider):
+        return _prefetch_curated_lists(desired, scope, provider)
+
+    def finalize(self, zp, desired, scope, provider, ctx):
+        return _finalize_curated_lists(zp, desired, scope, provider, ctx)
+
+    def apply(self, zp, plans, scope, provider):
+        return _apply_curated_lists(zp, plans, scope, provider)
+
+    def dump(self, scope, provider):
+        return _dump_curated_lists(scope, provider)
+
+    def validate(self, desired, zone_name, errors, lines):
+        return _validate_curated_lists(desired, zone_name, errors, lines)
 
 
 # ---------------------------------------------------------------------------

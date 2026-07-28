@@ -378,6 +378,9 @@ class BunnyShieldProvider:
     NAMESPACE = "bunny"
     SUPPORTS = frozenset({"zone_discovery"})
 
+    # Built lazily by the `extensions` property.
+    _extensions: list | None = None
+
     def __init__(
         self,
         *,
@@ -1043,26 +1046,35 @@ class BunnyShieldProvider:
         """Bunny Shield does not support lists."""
         return {}
 
+    # --- Extensions ---
+
+    @property
+    def extensions(self) -> list:
+        """Bunny Shield's own provider extensions.
+
+        Core walks this instead of a global registry, so an extension is
+        only ever handed the provider that owns it.
+        """
+        from octorules_bunny._curated_lists import CuratedListsExtension
+        from octorules_bunny._pullzone_security import PullzoneSecurityExtension
+        from octorules_bunny._shield_config import ManagedRulesExtension, ShieldConfigExtension
+
+        if self._extensions is None:
+            self._extensions = [
+                ShieldConfigExtension(),
+                ManagedRulesExtension(),
+                PullzoneSecurityExtension(),
+                CuratedListsExtension(),
+            ]
+        return self._extensions
+
     # --- Dump ---
 
     def dump_extra_sections(self, scope: Scope) -> dict:
-        """Bunny Shield-owned settings sections for the dumped zone file.
-
-        Called only with this provider, so a section can never be requested
-        from a provider that cannot fetch it — the reason dump is a method
-        here and not an extension registry.
-        """
-        from octorules_bunny._curated_lists import _dump_curated_lists
-        from octorules_bunny._pullzone_security import _dump_pullzone_security
-        from octorules_bunny._shield_config import _dump_shield_config
-
+        """Bunny Shield-owned sections for the dumped zone file."""
         result: dict = {}
-        for fn in (
-            _dump_shield_config,
-            _dump_pullzone_security,
-            _dump_curated_lists,
-        ):
-            data = fn(scope, self)
+        for ext in self.extensions:
+            data = ext.dump(scope, self)
             if data:
                 result.update(data)
         return result

@@ -12,6 +12,7 @@ format_extension, validate_extension, and dump_extension.
 
 import logging
 
+from octorules.extensions import ProviderExtension
 from octorules.registration import idempotent_registration
 
 from octorules_bunny._config_base import (
@@ -235,6 +236,31 @@ def _dump_pullzone_security(scope, provider):
     if config:
         return {"bunny_pullzone_security": config}
     return None
+
+
+# ---------------------------------------------------------------------------
+# Extension
+# ---------------------------------------------------------------------------
+class PullzoneSecurityExtension(ProviderExtension):
+    """Pull-zone security settings."""
+
+    section = "bunny_pullzone_security"
+    formatter = ConfigFormatter()
+
+    def prefetch(self, desired, scope, provider):
+        return _prefetch_pullzone_security(desired, scope, provider)
+
+    def finalize(self, zp, desired, scope, provider, ctx):
+        return _finalize_pullzone_security(zp, desired, scope, provider, ctx)
+
+    def apply(self, zp, plans, scope, provider):
+        return _apply_pullzone_security(zp, plans, scope, provider)
+
+    def dump(self, scope, provider):
+        return _dump_pullzone_security(scope, provider)
+
+    def validate(self, desired, zone_name, errors, lines):
+        return _validate_pullzone_security(desired, zone_name, errors, lines)
 
 
 # ---------------------------------------------------------------------------
