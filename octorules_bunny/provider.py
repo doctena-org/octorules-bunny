@@ -12,7 +12,11 @@ import threading
 
 import httpx
 from octorules.config import ConfigError
-from octorules.provider.base import PhaseRulesResult, Scope
+from octorules.provider.base import (
+    SUPPORTS_ZONE_DISCOVERY,
+    PhaseRulesResult,
+    Scope,
+)
 from octorules.provider.exceptions import ProviderError
 from octorules.provider.utils import fetch_parallel, make_error_wrapper
 
@@ -376,7 +380,7 @@ class BunnyShieldProvider:
     """
 
     NAMESPACE = "bunny"
-    SUPPORTS = frozenset({"zone_discovery"})
+    SUPPORTS = frozenset({SUPPORTS_ZONE_DISCOVERY})
 
     # Built lazily by the `extensions` property.
     _extensions: list | None = None
