@@ -190,7 +190,7 @@ class TestPrefetchHook:
         provider.get_bot_detection_config.return_value = {"executionMode": 1}
 
         all_desired = {
-            "bunny_shield_config": {
+            "bunny.shield_config": {
                 "bot_detection": {"execution_mode": "block"},
                 "ddos": {"shield_sensitivity": "high"},
             }
@@ -204,7 +204,7 @@ class TestPrefetchHook:
     def test_fetches_managed_rules_only(self):
         provider = MagicMock()
         provider.get_shield_zone_config.return_value = {"wafDisabledRules": ["1"]}
-        all_desired = {"bunny_waf_managed_rules": {"disabled": ["1", "2"]}}
+        all_desired = {"bunny.waf_managed_rules": {"disabled": ["1", "2"]}}
         result = _prefetch_shield_config(all_desired, _scope(), provider)
         assert result is not None
         _, _, _, desired_config, desired_managed = result
@@ -216,7 +216,7 @@ class TestPrefetchHook:
 
         provider = MagicMock()
         provider.get_shield_zone_config.side_effect = ProviderError("API down")
-        all_desired = {"bunny_shield_config": {"ddos": {"execution_mode": "block"}}}
+        all_desired = {"bunny.shield_config": {"ddos": {"execution_mode": "block"}}}
         result = _prefetch_shield_config(all_desired, _scope(), provider)
         # Should not raise — returns empty shield_zone
         shield_zone, _bot_config, _, _, _ = result
@@ -237,8 +237,8 @@ class TestFinalizeHook:
         ctx = (shield_zone, bot_config, {}, desired_config, None)
 
         _finalize_shield_config(zp, {}, _scope(), MagicMock(), ctx)
-        assert "bunny_shield_config" in zp.extension_plans
-        plan = zp.extension_plans["bunny_shield_config"][0]
+        assert "bunny.shield_config" in zp.extension_plans
+        plan = zp.extension_plans["bunny.shield_config"][0]
         assert plan.has_changes
 
     def test_no_plan_when_no_changes(self):
@@ -260,7 +260,7 @@ class TestFinalizeHook:
         ctx = (shield_zone, {}, {}, desired_config, None)
 
         _finalize_shield_config(zp, {}, _scope(), MagicMock(), ctx)
-        assert "bunny_shield_config" not in zp.extension_plans
+        assert "bunny.shield_config" not in zp.extension_plans
 
     def test_none_ctx_is_noop(self):
         zp = MagicMock()
@@ -277,7 +277,7 @@ class TestFinalizeHook:
         ctx = (shield_zone, {}, {}, None, desired_managed)
 
         _finalize_shield_config(zp, {}, _scope(), MagicMock(), ctx)
-        assert "bunny_waf_managed_rules" in zp.extension_plans
+        assert "bunny.waf_managed_rules" in zp.extension_plans
 
 
 # ---------------------------------------------------------------------------
@@ -319,7 +319,7 @@ class TestApplyHook:
             ]
         )
         synced, _error = _apply_shield_config(zp, [plan], _scope(), provider)
-        assert "bunny_waf_managed_rules" in synced
+        assert "bunny.waf_managed_rules" in synced
         provider.update_shield_zone_config.assert_called_once()
 
     def test_no_changes_skipped(self):
@@ -572,7 +572,7 @@ class TestShieldConfigFormatter:
 class TestValidateExtension:
     def test_valid_config(self):
         desired = {
-            "bunny_shield_config": {
+            "bunny.shield_config": {
                 "bot_detection": {"execution_mode": "block", "ip_sensitivity": "medium"},
                 "ddos": {
                     "execution_mode": "log",
@@ -588,7 +588,7 @@ class TestValidateExtension:
 
     def test_invalid_bot_execution_mode(self):
         desired = {
-            "bunny_shield_config": {
+            "bunny.shield_config": {
                 "bot_detection": {"execution_mode": "destroy"},
             }
         }
@@ -601,7 +601,7 @@ class TestValidateExtension:
         # "extreme" is a real level (4) since the SENSITIVITY map gained it;
         # use a name that genuinely doesn't exist.
         desired = {
-            "bunny_shield_config": {
+            "bunny.shield_config": {
                 "bot_detection": {"ip_sensitivity": "maximum"},
             }
         }
@@ -611,7 +611,7 @@ class TestValidateExtension:
 
     def test_extreme_ddos_sensitivity_is_valid(self):
         desired = {
-            "bunny_shield_config": {
+            "bunny.shield_config": {
                 "ddos": {"shield_sensitivity": "extreme"},
             }
         }
@@ -622,7 +622,7 @@ class TestValidateExtension:
     def test_extreme_bot_sensitivity_is_invalid(self):
         # BotDetectionSensitivity is 0-3; "extreme" is DDoS-only.
         desired = {
-            "bunny_shield_config": {
+            "bunny.shield_config": {
                 "bot_detection": {"ip_sensitivity": "extreme"},
             }
         }
@@ -632,7 +632,7 @@ class TestValidateExtension:
 
     def test_invalid_challenge_window(self):
         desired = {
-            "bunny_shield_config": {
+            "bunny.shield_config": {
                 "ddos": {"challenge_window": -1},
             }
         }
@@ -642,7 +642,7 @@ class TestValidateExtension:
         assert "challenge_window" in errors[0]
 
     def test_invalid_managed_rules_type(self):
-        desired = {"bunny_waf_managed_rules": {"disabled": "not-a-list"}}
+        desired = {"bunny.waf_managed_rules": {"disabled": "not-a-list"}}
         errors: list[str] = []
         _validate_shield_config(desired, "zone", errors, [])
         assert len(errors) == 1
@@ -668,9 +668,9 @@ class TestDumpExtension:
         provider.get_bot_detection_config.return_value = {"executionMode": 2}
 
         result = _dump_shield_config(_scope(), provider)
-        assert "bunny_shield_config" in result
-        assert "bunny_waf_managed_rules" in result
-        assert result["bunny_waf_managed_rules"]["disabled"] == ["941100"]
+        assert "bunny.shield_config" in result
+        assert "bunny.waf_managed_rules" in result
+        assert result["bunny.waf_managed_rules"]["disabled"] == ["941100"]
 
     def test_dump_api_failure(self):
         from octorules.provider.exceptions import ProviderError
@@ -688,8 +688,8 @@ class TestDumpExtension:
         result = _dump_shield_config(_scope(), provider)
         # waf section with defaults is always included
         assert result is not None
-        assert "bunny_shield_config" in result
-        assert "waf" in result["bunny_shield_config"]
+        assert "bunny.shield_config" in result
+        assert "waf" in result["bunny.shield_config"]
 
 
 # ---------------------------------------------------------------------------
@@ -941,7 +941,7 @@ class TestDiffNewSections:
 class TestValidateWafAndUploadScanning:
     def test_valid_waf_config(self):
         desired = {
-            "bunny_shield_config": {
+            "bunny.shield_config": {
                 "waf": {
                     "learning_mode": True,
                     "request_body_limit_action": 1,
@@ -957,21 +957,21 @@ class TestValidateWafAndUploadScanning:
         assert errors == []
 
     def test_invalid_waf_learning_mode_type(self):
-        desired = {"bunny_shield_config": {"waf": {"learning_mode": "yes"}}}
+        desired = {"bunny.shield_config": {"waf": {"learning_mode": "yes"}}}
         errors: list[str] = []
         _validate_shield_config(desired, "zone", errors, [])
         assert len(errors) == 1
         assert "learning_mode" in errors[0]
 
     def test_invalid_body_limit_type(self):
-        desired = {"bunny_shield_config": {"waf": {"request_body_limit_action": "big"}}}
+        desired = {"bunny.shield_config": {"waf": {"request_body_limit_action": "big"}}}
         errors: list[str] = []
         _validate_shield_config(desired, "zone", errors, [])
         assert len(errors) == 1
         assert "request_body_limit_action" in errors[0]
 
     def test_invalid_ignored_headers_type(self):
-        desired = {"bunny_shield_config": {"waf": {"request_ignored_headers": "Authorization"}}}
+        desired = {"bunny.shield_config": {"waf": {"request_ignored_headers": "Authorization"}}}
         errors: list[str] = []
         _validate_shield_config(desired, "zone", errors, [])
         assert len(errors) == 1
@@ -979,7 +979,7 @@ class TestValidateWafAndUploadScanning:
 
     def test_valid_upload_scanning(self):
         desired = {
-            "bunny_shield_config": {
+            "bunny.shield_config": {
                 "upload_scanning": {
                     "enabled": True,
                     "csam_scanning_mode": 1,
@@ -992,7 +992,7 @@ class TestValidateWafAndUploadScanning:
         assert errors == []
 
     def test_invalid_upload_scanning_mode_type(self):
-        desired = {"bunny_shield_config": {"upload_scanning": {"csam_scanning_mode": "on"}}}
+        desired = {"bunny.shield_config": {"upload_scanning": {"csam_scanning_mode": "on"}}}
         errors: list[str] = []
         _validate_shield_config(desired, "zone", errors, [])
         assert len(errors) == 1
@@ -1000,7 +1000,7 @@ class TestValidateWafAndUploadScanning:
 
     def test_valid_global_waf_fields(self):
         desired = {
-            "bunny_shield_config": {
+            "bunny.shield_config": {
                 "waf": {
                     "enabled": True,
                     "execution_mode": "block",
@@ -1014,34 +1014,34 @@ class TestValidateWafAndUploadScanning:
         assert errors == []
 
     def test_invalid_waf_execution_mode(self):
-        desired = {"bunny_shield_config": {"waf": {"execution_mode": "nuke"}}}
+        desired = {"bunny.shield_config": {"waf": {"execution_mode": "nuke"}}}
         errors: list[str] = []
         _validate_shield_config(desired, "zone", errors, [])
         assert len(errors) == 1
         assert "execution_mode" in errors[0]
 
     def test_invalid_profile_id_type(self):
-        desired = {"bunny_shield_config": {"waf": {"profile_id": "general"}}}
+        desired = {"bunny.shield_config": {"waf": {"profile_id": "general"}}}
         errors: list[str] = []
         _validate_shield_config(desired, "zone", errors, [])
         assert len(errors) == 1
         assert "profile_id" in errors[0]
 
     def test_invalid_engine_config_type(self):
-        desired = {"bunny_shield_config": {"waf": {"engine_config": "bad"}}}
+        desired = {"bunny.shield_config": {"waf": {"engine_config": "bad"}}}
         errors: list[str] = []
         _validate_shield_config(desired, "zone", errors, [])
         assert len(errors) == 1
         assert "engine_config" in errors[0]
 
     def test_valid_aggression(self):
-        desired = {"bunny_shield_config": {"bot_detection": {"fingerprint_aggression": 2}}}
+        desired = {"bunny.shield_config": {"bot_detection": {"fingerprint_aggression": 2}}}
         errors: list[str] = []
         _validate_shield_config(desired, "zone", errors, [])
         assert errors == []
 
     def test_invalid_aggression_type(self):
-        desired = {"bunny_shield_config": {"bot_detection": {"fingerprint_aggression": "high"}}}
+        desired = {"bunny.shield_config": {"bot_detection": {"fingerprint_aggression": "high"}}}
         errors: list[str] = []
         _validate_shield_config(desired, "zone", errors, [])
         assert len(errors) == 1

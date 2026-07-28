@@ -37,7 +37,7 @@ class TestBN503Unreachable:
     def test_bn503_unreachable_after_catch_all_block(self):
         ctx = _ctx()
         rules_data = {
-            "bunny_waf_custom_rules": [
+            "bunny.waf_custom_rules": [
                 self._catch_all_rule("catch-all"),
                 self._normal_rule("after"),
             ]
@@ -51,7 +51,7 @@ class TestBN503Unreachable:
         """Log doesn't terminate — subsequent rules should NOT be flagged."""
         ctx = _ctx()
         rules_data = {
-            "bunny_waf_custom_rules": [
+            "bunny.waf_custom_rules": [
                 self._catch_all_rule("logger", action="log"),
                 self._normal_rule("after"),
             ]
@@ -64,7 +64,7 @@ class TestBN503Unreachable:
         """A rule with a specific condition is not catch-all."""
         ctx = _ctx()
         rules_data = {
-            "bunny_waf_custom_rules": [
+            "bunny.waf_custom_rules": [
                 self._normal_rule("first"),
                 self._normal_rule("second"),
             ]
@@ -79,7 +79,7 @@ class TestBN503Unreachable:
         catch_all = self._catch_all_rule("disabled")
         catch_all["enabled"] = False
         rules_data = {
-            "bunny_waf_custom_rules": [
+            "bunny.waf_custom_rules": [
                 catch_all,
                 self._normal_rule("after"),
             ]
@@ -92,7 +92,7 @@ class TestBN503Unreachable:
         """Multiple rules after catch-all should all be flagged."""
         ctx = _ctx()
         rules_data = {
-            "bunny_waf_custom_rules": [
+            "bunny.waf_custom_rules": [
                 self._catch_all_rule("catch-all"),
                 self._normal_rule("after1"),
                 self._normal_rule("after2"),
@@ -106,7 +106,7 @@ class TestBN503Unreachable:
         """A rule with 2 conditions (even if one is catch-all) is not catch-all."""
         ctx = _ctx()
         rules_data = {
-            "bunny_waf_custom_rules": [
+            "bunny.waf_custom_rules": [
                 {
                     "ref": "multi",
                     "action": "block",
@@ -127,7 +127,7 @@ class TestBN503Unreachable:
         """Access list phases don't have conditions — should be skipped."""
         ctx = _ctx()
         rules_data = {
-            "bunny_waf_access_list_rules": [
+            "bunny.waf_access_list_rules": [
                 {
                     "ref": "r1",
                     "type": "ip",

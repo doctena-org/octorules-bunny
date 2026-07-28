@@ -12,7 +12,7 @@ def _ctx(*, phase_filter=None, plan_tier=""):
 class TestCrossPhaseChecks:
     def test_bn500_duplicate_conditions(self):
         rules_data = {
-            "bunny_waf_custom_rules": [
+            "bunny.waf_custom_rules": [
                 {
                     "ref": "Rule A",
                     "action": "block",
@@ -40,7 +40,7 @@ class TestCrossPhaseChecks:
 
     def test_bn501_exceeds_free_limit(self):
         rules_data = {
-            "bunny_waf_custom_rules": [
+            "bunny.waf_custom_rules": [
                 {
                     "ref": f"Rule {i}",
                     "action": "block",
@@ -61,7 +61,7 @@ class TestCrossPhaseChecks:
     def test_bn501_respects_plan_tier_basic(self):
         """When plan_tier='basic', BN501 checks only the basic limit."""
         rules_data = {
-            "bunny_waf_custom_rules": [
+            "bunny.waf_custom_rules": [
                 {
                     "ref": f"Rule {i}",
                     "action": "block",
@@ -83,7 +83,7 @@ class TestCrossPhaseChecks:
     def test_bn501_respects_plan_tier_advanced_under_limit(self):
         """When plan_tier='advanced' and rule count is within limit, no BN501."""
         rules_data = {
-            "bunny_waf_custom_rules": [
+            "bunny.waf_custom_rules": [
                 {
                     "ref": f"Rule {i}",
                     "action": "block",
@@ -104,7 +104,7 @@ class TestCrossPhaseChecks:
     def test_bn501_respects_plan_tier_advanced_over_limit(self):
         """When plan_tier='advanced' and rule count exceeds limit, BN501 fires."""
         rules_data = {
-            "bunny_waf_custom_rules": [
+            "bunny.waf_custom_rules": [
                 {
                     "ref": f"Rule {i}",
                     "action": "block",
@@ -126,7 +126,7 @@ class TestCrossPhaseChecks:
     def test_bn501_enterprise_tier_falls_back(self):
         """When plan_tier='enterprise' (unknown), fall back to lowest-tier-exceeded."""
         rules_data = {
-            "bunny_waf_custom_rules": [
+            "bunny.waf_custom_rules": [
                 {
                     "ref": f"Rule {i}",
                     "action": "block",
@@ -149,7 +149,7 @@ class TestCrossPhaseChecks:
     def test_bn501_access_list_count_basic(self):
         """Basic tier: 1 access list allowed, 2 should trigger BN501."""
         rules_data = {
-            "bunny_waf_access_list_rules": [
+            "bunny.waf_access_list_rules": [
                 {
                     "ref": f"list-{i}",
                     "type": "ip",
@@ -169,7 +169,7 @@ class TestCrossPhaseChecks:
     def test_bn501_access_list_count_advanced_under(self):
         """Advanced tier: 5 access lists allowed, 3 should not trigger."""
         rules_data = {
-            "bunny_waf_access_list_rules": [
+            "bunny.waf_access_list_rules": [
                 {
                     "ref": f"list-{i}",
                     "type": "ip",
@@ -188,7 +188,7 @@ class TestCrossPhaseChecks:
     def test_bn501_access_list_count_advanced_over(self):
         """Advanced tier: 5 access lists allowed, 6 should trigger."""
         rules_data = {
-            "bunny_waf_access_list_rules": [
+            "bunny.waf_access_list_rules": [
                 {
                     "ref": f"list-{i}",
                     "type": "ip",
@@ -206,7 +206,7 @@ class TestCrossPhaseChecks:
 
     def test_bn502_conflicting_access_lists(self):
         rules_data = {
-            "bunny_waf_access_list_rules": [
+            "bunny.waf_access_list_rules": [
                 {
                     "ref": "1",
                     "type": "ip",
@@ -230,7 +230,7 @@ class TestCrossPhaseChecks:
 
     def test_bn502_no_conflict_different_ips(self):
         rules_data = {
-            "bunny_waf_access_list_rules": [
+            "bunny.waf_access_list_rules": [
                 {
                     "ref": "1",
                     "type": "ip",

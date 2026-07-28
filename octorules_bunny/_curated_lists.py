@@ -95,7 +95,7 @@ def diff_curated_lists(current: dict, desired: dict) -> ConfigPlan:
 # ---------------------------------------------------------------------------
 def _prefetch_curated_lists(all_desired, scope, provider):
     """Prefetch: fetch current managed access lists."""
-    desired = all_desired.get("bunny_curated_threat_lists")
+    desired = all_desired.get("bunny.curated_threat_lists")
     if desired is None:
         return None
 
@@ -121,7 +121,7 @@ def _finalize_curated_lists(zp, all_desired, scope, provider, ctx):
     current = normalize_curated_lists(managed)
     plan = diff_curated_lists(current, desired)
     if plan.has_changes:
-        zp.extension_plans.setdefault("bunny_curated_threat_lists", []).append(plan)
+        zp.extension_plans.setdefault("bunny.curated_threat_lists", []).append(plan)
 
 
 def _apply_curated_lists(zp, plans, scope, provider):
@@ -157,7 +157,7 @@ def _apply_curated_lists(zp, plans, scope, provider):
 # ---------------------------------------------------------------------------
 def _validate_curated_lists(desired, zone_name, errors, lines):
     """Validate bunny_curated_threat_lists offline."""
-    config = desired.get("bunny_curated_threat_lists")
+    config = desired.get("bunny.curated_threat_lists")
     if not isinstance(config, dict):
         return
 
@@ -199,7 +199,7 @@ def _dump_curated_lists(scope, provider):
     for name, entry in normalized.items():
         result[name] = {k: v for k, v in entry.items() if not k.startswith("_")}
 
-    return {"bunny_curated_threat_lists": result} if result else None
+    return {"bunny.curated_threat_lists": result} if result else None
 
 
 # ---------------------------------------------------------------------------
@@ -208,7 +208,7 @@ def _dump_curated_lists(scope, provider):
 class CuratedListsExtension(ProviderExtension):
     """Curated threat lists."""
 
-    section = "bunny_curated_threat_lists"
+    section = "bunny.curated_threat_lists"
     formatter = ConfigFormatter()
 
     def prefetch(self, desired, scope, provider):
@@ -241,6 +241,6 @@ def register_curated_lists() -> None:
     )
 
     register_plan_zone_hook(_prefetch_curated_lists, _finalize_curated_lists)
-    register_apply_extension("bunny_curated_threat_lists", _apply_curated_lists)
-    register_format_extension("bunny_curated_threat_lists", ConfigFormatter())
+    register_apply_extension("bunny.curated_threat_lists", _apply_curated_lists)
+    register_format_extension("bunny.curated_threat_lists", ConfigFormatter())
     register_validate_extension(_validate_curated_lists)

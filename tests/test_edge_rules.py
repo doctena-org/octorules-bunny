@@ -20,7 +20,7 @@ from octorules_bunny.provider import (
 )
 from octorules_bunny.validate import validate_rules
 
-_E = "bunny_edge_rules"
+_E = "bunny.edge_rules"
 
 
 def _zs(zone_id: str = "999", label: str = "") -> Scope:

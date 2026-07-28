@@ -30,19 +30,19 @@ BN_RULE_IDS: frozenset[str] = _validate_ids | _PLUGIN_RULE_IDS
 # Enterprise has no documented caps — omitted so the linter won't warn.
 _PLAN_LIMITS: dict[str, dict[str, int]] = {
     "basic": {
-        "bunny_waf_custom_rules": 0,
-        "bunny_waf_rate_limit_rules": 2,
-        "bunny_waf_access_list_rules": 1,
+        "bunny.waf_custom_rules": 0,
+        "bunny.waf_rate_limit_rules": 2,
+        "bunny.waf_access_list_rules": 1,
     },
     "advanced": {
-        "bunny_waf_custom_rules": 10,
-        "bunny_waf_rate_limit_rules": 10,
-        "bunny_waf_access_list_rules": 5,
+        "bunny.waf_custom_rules": 10,
+        "bunny.waf_rate_limit_rules": 10,
+        "bunny.waf_access_list_rules": 5,
     },
     "business": {
-        "bunny_waf_custom_rules": 25,
-        "bunny_waf_rate_limit_rules": 25,
-        "bunny_waf_access_list_rules": 10,
+        "bunny.waf_custom_rules": 25,
+        "bunny.waf_rate_limit_rules": 25,
+        "bunny.waf_access_list_rules": 10,
     },
 }
 
@@ -161,7 +161,7 @@ def _check_plan_tier_limits(rules_data: dict[str, Any], ctx: LintContext) -> Non
 
 def _check_conflicting_access_lists(rules_data: dict[str, Any], ctx: LintContext) -> None:
     """BN502: Detect access lists with overlapping entries and different actions."""
-    phase_name = "bunny_waf_access_list_rules"
+    phase_name = "bunny.waf_access_list_rules"
     if phase_name not in BUNNY_PHASE_NAMES:
         return
     if phase_name not in PHASE_BY_NAME:

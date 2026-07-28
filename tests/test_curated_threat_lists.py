@@ -128,7 +128,7 @@ class TestValidate:
         from octorules_bunny._curated_lists import _validate_curated_lists
 
         desired = {
-            "bunny_curated_threat_lists": {
+            "bunny.curated_threat_lists": {
                 "VPN Providers": {"enabled": True, "action": "block"},
                 "TOR Exit Nodes": {"enabled": False, "action": "log"},
             }
@@ -141,7 +141,7 @@ class TestValidate:
         from octorules_bunny._curated_lists import _validate_curated_lists
 
         desired = {
-            "bunny_curated_threat_lists": {
+            "bunny.curated_threat_lists": {
                 "VPN Providers": {"enabled": True, "action": "nuke"},
             }
         }
@@ -154,7 +154,7 @@ class TestValidate:
         from octorules_bunny._curated_lists import _validate_curated_lists
 
         desired = {
-            "bunny_curated_threat_lists": {
+            "bunny.curated_threat_lists": {
                 "VPN Providers": {"enabled": "yes", "action": "block"},
             }
         }
@@ -166,7 +166,7 @@ class TestValidate:
     def test_non_dict_entry(self):
         from octorules_bunny._curated_lists import _validate_curated_lists
 
-        desired = {"bunny_curated_threat_lists": {"VPN Providers": "block"}}
+        desired = {"bunny.curated_threat_lists": {"VPN Providers": "block"}}
         errors: list[str] = []
         _validate_curated_lists(desired, "zone", errors, [])
         assert len(errors) == 1

@@ -136,7 +136,7 @@ def diff_pullzone_security(current: dict, desired: dict) -> ConfigPlan:
 # ---------------------------------------------------------------------------
 def _prefetch_pullzone_security(all_desired, scope, provider):
     """Prefetch: fetch current pull zone security config."""
-    desired = all_desired.get("bunny_pullzone_security")
+    desired = all_desired.get("bunny.pullzone_security")
     if desired is None:
         return None
 
@@ -161,7 +161,7 @@ def _finalize_pullzone_security(zp, all_desired, scope, provider, ctx):
     current, desired = ctx
     plan = diff_pullzone_security(current, desired)
     if plan.has_changes:
-        zp.extension_plans.setdefault("bunny_pullzone_security", []).append(plan)
+        zp.extension_plans.setdefault("bunny.pullzone_security", []).append(plan)
 
 
 def _apply_pullzone_security(zp, plans, scope, provider):
@@ -175,7 +175,7 @@ def _apply_pullzone_security(zp, plans, scope, provider):
         desired_values = section_desired(plan, "pullzone_security")
         if desired_values:
             provider.update_pullzone_security(scope, desired_values)
-            synced.append("bunny_pullzone_security")
+            synced.append("bunny.pullzone_security")
             break  # Single API call covers all fields
 
     return synced, None
@@ -186,7 +186,7 @@ def _apply_pullzone_security(zp, plans, scope, provider):
 # ---------------------------------------------------------------------------
 def _validate_pullzone_security(desired, zone_name, errors, lines):
     """Validate bunny_pullzone_security offline."""
-    config = desired.get("bunny_pullzone_security")
+    config = desired.get("bunny.pullzone_security")
     if not isinstance(config, dict):
         return
 
@@ -234,7 +234,7 @@ def _dump_pullzone_security(scope, provider):
         return None
 
     if config:
-        return {"bunny_pullzone_security": config}
+        return {"bunny.pullzone_security": config}
     return None
 
 
@@ -244,7 +244,7 @@ def _dump_pullzone_security(scope, provider):
 class PullzoneSecurityExtension(ProviderExtension):
     """Pull-zone security settings."""
 
-    section = "bunny_pullzone_security"
+    section = "bunny.pullzone_security"
     formatter = ConfigFormatter()
 
     def prefetch(self, desired, scope, provider):
@@ -277,6 +277,6 @@ def register_pullzone_security() -> None:
     )
 
     register_plan_zone_hook(_prefetch_pullzone_security, _finalize_pullzone_security)
-    register_apply_extension("bunny_pullzone_security", _apply_pullzone_security)
-    register_format_extension("bunny_pullzone_security", ConfigFormatter())
+    register_apply_extension("bunny.pullzone_security", _apply_pullzone_security)
+    register_format_extension("bunny.pullzone_security", ConfigFormatter())
     register_validate_extension(_validate_pullzone_security)

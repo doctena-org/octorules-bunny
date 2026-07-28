@@ -5,9 +5,9 @@ from octorules.testing.lint import assert_lint, assert_no_lint
 
 from octorules_bunny.validate import validate_rules
 
-_C = "bunny_waf_custom_rules"
-_R = "bunny_waf_rate_limit_rules"
-_A = "bunny_waf_access_list_rules"
+_C = "bunny.waf_custom_rules"
+_R = "bunny.waf_rate_limit_rules"
+_A = "bunny.waf_access_list_rules"
 
 
 def _custom(**overrides):

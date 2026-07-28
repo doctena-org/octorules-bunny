@@ -4,7 +4,7 @@ from octorules.testing.lint import assert_lint, assert_no_lint
 
 from octorules_bunny.validate import validate_rules
 
-_PHASE = "bunny_edge_rules"
+_PHASE = "bunny.edge_rules"
 
 
 def _rule(trigger_type, patterns, **overrides):

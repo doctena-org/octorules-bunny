@@ -34,7 +34,7 @@ def _bn_prepare_access_list(rule: dict, phase: Phase) -> dict:
 
 BUNNY_PHASES = [
     Phase(
-        "bunny_waf_custom_rules",
+        "bunny.waf_custom_rules",
         "bunny_waf_custom",
         None,
         zone_level=True,
@@ -42,7 +42,7 @@ BUNNY_PHASES = [
         prepare_rule=_bn_prepare_rule,
     ),
     Phase(
-        "bunny_waf_rate_limit_rules",
+        "bunny.waf_rate_limit_rules",
         "bunny_waf_rate_limit",
         None,
         zone_level=True,
@@ -50,7 +50,7 @@ BUNNY_PHASES = [
         prepare_rule=_bn_prepare_rule,
     ),
     Phase(
-        "bunny_waf_access_list_rules",
+        "bunny.waf_access_list_rules",
         "bunny_waf_access_list",
         None,
         zone_level=True,
@@ -58,7 +58,7 @@ BUNNY_PHASES = [
         prepare_rule=_bn_prepare_access_list,
     ),
     Phase(
-        "bunny_edge_rules",
+        "bunny.edge_rules",
         "bunny_edge_rule",
         None,
         zone_level=True,

@@ -17,7 +17,7 @@ def lint_config(tmp_path):
     rules_dir.mkdir()
 
     (rules_dir / "my-cdn.yaml").write_text(
-        "bunny_waf_custom_rules:\n"
+        "bunny:\n  waf_custom_rules:\n"
         "  - ref: Block admin\n"
         "    action: block\n"
         "    severity: info\n"
@@ -30,7 +30,7 @@ def lint_config(tmp_path):
 
     # Missing ref (BN001) + missing operator (BN401).
     (rules_dir / "bad-cdn.yaml").write_text(
-        "bunny_waf_custom_rules:\n"
+        "bunny:\n  waf_custom_rules:\n"
         "  - action: block\n"
         "    conditions:\n"
         "      - variable: request_uri\n"
@@ -99,7 +99,7 @@ class TestCmdLint:
         rc = cmd_lint(
             lint_config,
             ["bad-cdn"],
-            phase_filter=["bunny_waf_rate_limit_rules"],
+            phase_filter=["bunny.waf_rate_limit_rules"],
         )
         # bad-cdn.yaml has no rate-limit rules, so nothing to lint → 0.
         assert rc == 0
@@ -185,7 +185,7 @@ class TestSuppressionsHonored:
             # File-wide: the ref-less rule triggers both BN001 and core's
             # CORE007 (prepare requires a ref) — suppress both.
             "# octorules:disable=BN001,CORE007\n"
-            "bunny_waf_custom_rules:\n"
+            "bunny:\n  waf_custom_rules:\n"
             "  - action: block\n"
             "    conditions:\n"
             "      - variable: request_uri\n"

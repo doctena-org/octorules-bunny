@@ -26,7 +26,7 @@ def _extract_ips(rules_data: dict, phase_name: str) -> list[RuleIPInfo]:
         action = str(rule.get("action", ""))
 
         # Access lists: extract from content field (IP and CIDR types only)
-        if phase_name == "bunny_waf_access_list_rules":
+        if phase_name == "bunny.waf_access_list_rules":
             list_type = rule.get("type", "")
             if list_type in ("ip", "cidr"):
                 content = rule.get("content", "")
@@ -45,8 +45,8 @@ def _extract_ips(rules_data: dict, phase_name: str) -> list[RuleIPInfo]:
 
         # Custom WAF / Rate limit: extract from conditions targeting REMOTE_ADDR
         elif phase_name in (
-            "bunny_waf_custom_rules",
-            "bunny_waf_rate_limit_rules",
+            "bunny.waf_custom_rules",
+            "bunny.waf_rate_limit_rules",
         ):
             for cond in rule.get("conditions", []):
                 if not isinstance(cond, dict):
@@ -69,7 +69,7 @@ def _extract_ips(rules_data: dict, phase_name: str) -> list[RuleIPInfo]:
         # carries a list of IP/CIDR pattern_matches. The edge-rule action lives
         # under "action_type" (block / redirect / set_header / …); use that as
         # the audit action string for ip-shadow and zone-drift comparisons.
-        elif phase_name == "bunny_edge_rules":
+        elif phase_name == "bunny.edge_rules":
             edge_action = str(rule.get("action_type", ""))
             ip_ranges: list[str] = []
             for trigger in rule.get("triggers", []) or []:

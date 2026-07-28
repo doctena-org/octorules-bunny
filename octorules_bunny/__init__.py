@@ -13,24 +13,24 @@ from octorules_bunny.validate import validate_rules
 
 register_phases(BUNNY_PHASES)
 register_api_fields("rule", {"_api_id", "_config_id", "shieldZoneId", "Guid"})
-register_non_phase_key("bunny_waf_managed_rules")
-register_non_phase_key("bunny_shield_config")
-register_non_phase_key("bunny_pullzone_security")
-register_non_phase_key("bunny_curated_threat_lists")
+register_non_phase_key("bunny.waf_managed_rules")
+register_non_phase_key("bunny.shield_config")
+register_non_phase_key("bunny.pullzone_security")
+register_non_phase_key("bunny.curated_threat_lists")
 
 # Register nested zone-file format: bunny: { waf_custom_rules: [...] }
 register_namespace(
     "bunny",
-    {
-        "waf_custom_rules": "bunny_waf_custom_rules",
-        "waf_rate_limit_rules": "bunny_waf_rate_limit_rules",
-        "waf_access_list_rules": "bunny_waf_access_list_rules",
-        "edge_rules": "bunny_edge_rules",
-        "waf_managed_rules": "bunny_waf_managed_rules",
-        "shield_config": "bunny_shield_config",
-        "pullzone_security": "bunny_pullzone_security",
-        "curated_threat_lists": "bunny_curated_threat_lists",
-    },
+    (
+        "waf_custom_rules",
+        "waf_rate_limit_rules",
+        "waf_access_list_rules",
+        "edge_rules",
+        "waf_managed_rules",
+        "shield_config",
+        "pullzone_security",
+        "curated_threat_lists",
+    ),
 )
 
 from octorules_bunny.linter import register_bunny_linter  # noqa: E402

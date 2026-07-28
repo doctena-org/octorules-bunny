@@ -276,8 +276,8 @@ def diff_managed_rules(current: dict, desired: dict) -> ConfigPlan:
 # ---------------------------------------------------------------------------
 def _prefetch_shield_config(all_desired, scope, provider):
     """Prefetch: fetch current shield zone + bot detection config."""
-    desired_config = all_desired.get("bunny_shield_config")
-    desired_managed = all_desired.get("bunny_waf_managed_rules")
+    desired_config = all_desired.get("bunny.shield_config")
+    desired_managed = all_desired.get("bunny.waf_managed_rules")
     if desired_config is None and desired_managed is None:
         return None
 
@@ -326,14 +326,14 @@ def _finalize_shield_config(zp, all_desired, scope, provider, ctx):
         )
         plan = diff_shield_config(current_config, desired_config)
         if plan.has_changes:
-            zp.extension_plans.setdefault("bunny_shield_config", []).append(plan)
+            zp.extension_plans.setdefault("bunny.shield_config", []).append(plan)
 
     # Managed rule overrides
     if desired_managed is not None:
         current_managed = normalize_managed_rules(shield_zone)
         plan = diff_managed_rules(current_managed, desired_managed)
         if plan.has_changes:
-            zp.extension_plans.setdefault("bunny_waf_managed_rules", []).append(plan)
+            zp.extension_plans.setdefault("bunny.waf_managed_rules", []).append(plan)
 
 
 def _apply_shield_config(zp, plans, scope, provider):
@@ -392,7 +392,7 @@ def _apply_shield_config(zp, plans, scope, provider):
                 if managed_desired:
                     payload = denormalize_managed_rules(managed_desired)
                     provider.update_shield_zone_config(scope, payload)
-                    synced.append("bunny_waf_managed_rules")
+                    synced.append("bunny.waf_managed_rules")
                 sections_done.add("managed_rules")
 
     return synced, None
@@ -413,7 +413,7 @@ _VALID_DDOS_SENSITIVITIES = frozenset(DDOS_SENSITIVITY)
 
 def _validate_shield_config(desired, zone_name, errors, lines):
     """Validate bunny_shield_config and bunny_waf_managed_rules offline."""
-    config = desired.get("bunny_shield_config")
+    config = desired.get("bunny.shield_config")
     if isinstance(config, dict):
         bot = config.get("bot_detection", {})
         if isinstance(bot, dict):
@@ -500,7 +500,7 @@ def _validate_shield_config(desired, zone_name, errors, lines):
                 if val is not None and (not isinstance(val, int) or isinstance(val, bool)):
                     errors.append(f"{_pfx}.{key} {val!r} (must be int)")
 
-    managed = desired.get("bunny_waf_managed_rules")
+    managed = desired.get("bunny.waf_managed_rules")
     if isinstance(managed, dict):
         for key in ("disabled", "log_only"):
             val = managed.get(key)
@@ -540,11 +540,11 @@ def _dump_shield_config(scope, provider):
 
     config = normalize_shield_config(shield_zone, bot_config, upload_config=upload_config or None)
     if config:
-        result["bunny_shield_config"] = config
+        result["bunny.shield_config"] = config
 
     managed = normalize_managed_rules(shield_zone)
     if managed:
-        result["bunny_waf_managed_rules"] = managed
+        result["bunny.waf_managed_rules"] = managed
 
     return result if result else None
 
@@ -561,8 +561,8 @@ class ShieldConfigExtension(ProviderExtension):
     buckets; the sibling extension below owns applying the second one.
     """
 
-    section = "bunny_shield_config"
-    extra_sections = ("bunny_waf_managed_rules",)
+    section = "bunny.shield_config"
+    extra_sections = ("bunny.waf_managed_rules",)
     formatter = ConfigFormatter()
 
     def prefetch(self, desired, scope, provider):
@@ -588,7 +588,7 @@ class ManagedRulesExtension(ProviderExtension):
     fetch — so this owns only the apply stage and its formatter.
     """
 
-    section = "bunny_waf_managed_rules"
+    section = "bunny.waf_managed_rules"
     formatter = ConfigFormatter()
 
     def apply(self, zp, plans, scope, provider):
@@ -609,8 +609,8 @@ def register_shield_config() -> None:
     )
 
     register_plan_zone_hook(_prefetch_shield_config, _finalize_shield_config)
-    register_apply_extension("bunny_shield_config", _apply_shield_config)
-    register_apply_extension("bunny_waf_managed_rules", _apply_managed_rules)
-    register_format_extension("bunny_shield_config", ConfigFormatter())
-    register_format_extension("bunny_waf_managed_rules", ConfigFormatter())
+    register_apply_extension("bunny.shield_config", _apply_shield_config)
+    register_apply_extension("bunny.waf_managed_rules", _apply_managed_rules)
+    register_format_extension("bunny.shield_config", ConfigFormatter())
+    register_format_extension("bunny.waf_managed_rules", ConfigFormatter())
     register_validate_extension(_validate_shield_config)

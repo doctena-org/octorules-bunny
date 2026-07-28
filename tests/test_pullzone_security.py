@@ -200,7 +200,7 @@ class TestPrefetchHook:
             "cors_enabled": False,
         }
         all_desired = {
-            "bunny_pullzone_security": {
+            "bunny.pullzone_security": {
                 "blocked_ips": "1.2.3.4\n5.6.7.8",
                 "cors_enabled": True,
             }
@@ -216,7 +216,7 @@ class TestPrefetchHook:
 
         provider = MagicMock()
         provider.get_pullzone_security.side_effect = ProviderError("API down")
-        all_desired = {"bunny_pullzone_security": {"cors_enabled": True}}
+        all_desired = {"bunny.pullzone_security": {"cors_enabled": True}}
         result = _prefetch_pullzone_security(all_desired, _scope(), provider)
         current, _desired = result
         assert current == {}
@@ -235,8 +235,8 @@ class TestFinalizeHook:
         ctx = (current, desired)
 
         _finalize_pullzone_security(zp, {}, _scope(), MagicMock(), ctx)
-        assert "bunny_pullzone_security" in zp.extension_plans
-        plan = zp.extension_plans["bunny_pullzone_security"][0]
+        assert "bunny.pullzone_security" in zp.extension_plans
+        plan = zp.extension_plans["bunny.pullzone_security"][0]
         assert plan.has_changes
 
     def test_no_plan_when_no_changes(self):
@@ -247,7 +247,7 @@ class TestFinalizeHook:
         ctx = (config, config)
 
         _finalize_pullzone_security(zp, {}, _scope(), MagicMock(), ctx)
-        assert "bunny_pullzone_security" not in zp.extension_plans
+        assert "bunny.pullzone_security" not in zp.extension_plans
 
     def test_none_ctx_is_noop(self):
         zp = MagicMock()
@@ -271,7 +271,7 @@ class TestApplyHook:
         )
         synced, error = _apply_pullzone_security(zp, [plan], _scope(), provider)
         assert error is None
-        assert "bunny_pullzone_security" in synced
+        assert "bunny.pullzone_security" in synced
         provider.update_pullzone_security.assert_called_once()
         call_args = provider.update_pullzone_security.call_args
         settings = call_args[0][1]
@@ -514,7 +514,7 @@ class TestPullZoneSecurityFormatter:
 class TestValidateExtension:
     def test_valid_config(self):
         desired = {
-            "bunny_pullzone_security": {
+            "bunny.pullzone_security": {
                 "blocked_ips": ["1.2.3.4", "5.6.7.8"],
                 "blocked_countries": ["CN", "RU"],
                 "block_post_requests": True,
@@ -530,7 +530,7 @@ class TestValidateExtension:
 
     def test_invalid_bool_type(self):
         desired = {
-            "bunny_pullzone_security": {
+            "bunny.pullzone_security": {
                 "cors_enabled": "yes",
             }
         }
@@ -542,7 +542,7 @@ class TestValidateExtension:
 
     def test_invalid_string_type(self):
         desired = {
-            "bunny_pullzone_security": {
+            "bunny.pullzone_security": {
                 "blocked_ips": 12345,
             }
         }
@@ -554,7 +554,7 @@ class TestValidateExtension:
 
     def test_unknown_field(self):
         desired = {
-            "bunny_pullzone_security": {
+            "bunny.pullzone_security": {
                 "nonexistent_field": True,
             }
         }
@@ -565,7 +565,7 @@ class TestValidateExtension:
 
     def test_multiple_errors(self):
         desired = {
-            "bunny_pullzone_security": {
+            "bunny.pullzone_security": {
                 "blocked_ips": 123,
                 "cors_enabled": "nope",
                 "bad_field": True,
@@ -583,7 +583,7 @@ class TestValidateExtension:
     def test_non_dict_config_is_ok(self):
         """Non-dict values are silently ignored (not our concern)."""
         errors: list[str] = []
-        _validate_pullzone_security({"bunny_pullzone_security": "bad"}, "zone", errors, [])
+        _validate_pullzone_security({"bunny.pullzone_security": "bad"}, "zone", errors, [])
         assert errors == []
 
     def test_all_bool_fields_validated(self):
@@ -598,7 +598,7 @@ class TestValidateExtension:
         ]
         for field_name in bool_fields:
             errors: list[str] = []
-            desired = {"bunny_pullzone_security": {field_name: "yes"}}
+            desired = {"bunny.pullzone_security": {field_name: "yes"}}
             _validate_pullzone_security(desired, "zone", errors, [])
             assert len(errors) == 1, f"Expected validation error for {field_name}"
             assert "must be a bool" in errors[0]
@@ -606,7 +606,7 @@ class TestValidateExtension:
     def test_int_fields_validated(self):
         """Int fields reject non-int values."""
         errors: list[str] = []
-        desired = {"bunny_pullzone_security": {"logging_ip_anonymization_type": "high"}}
+        desired = {"bunny.pullzone_security": {"logging_ip_anonymization_type": "high"}}
         _validate_pullzone_security(desired, "zone", errors, [])
         assert len(errors) == 1
         assert "must be an int" in errors[0]
@@ -622,7 +622,7 @@ class TestValidateExtension:
         ]
         for field_name in str_fields:
             errors: list[str] = []
-            desired = {"bunny_pullzone_security": {field_name: 12345}}
+            desired = {"bunny.pullzone_security": {field_name: 12345}}
             _validate_pullzone_security(desired, "zone", errors, [])
             assert len(errors) == 1, f"Expected validation error for {field_name}"
             assert "must be a list" in errors[0]
@@ -647,9 +647,9 @@ class TestDumpExtension:
             "logging_ip_anonymization_type": 0,
         }
         result = _dump_pullzone_security(_scope(), provider)
-        assert "bunny_pullzone_security" in result
-        assert result["bunny_pullzone_security"]["blocked_ips"] == "1.2.3.4"
-        assert result["bunny_pullzone_security"]["cors_enabled"] is True
+        assert "bunny.pullzone_security" in result
+        assert result["bunny.pullzone_security"]["blocked_ips"] == "1.2.3.4"
+        assert result["bunny.pullzone_security"]["cors_enabled"] is True
 
     def test_dump_api_failure(self):
         from octorules.provider.exceptions import ProviderError

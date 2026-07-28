@@ -17,7 +17,7 @@ def _ctx(*, phase_filter=None, plan_tier=""):
 class TestBN009CrossPhaseDupRef:
     def test_same_ref_in_custom_and_rate_limit(self):
         rules_data = {
-            "bunny_waf_custom_rules": [
+            "bunny.waf_custom_rules": [
                 {
                     "ref": "API protection",
                     "action": "log",
@@ -28,7 +28,7 @@ class TestBN009CrossPhaseDupRef:
                     ],
                 },
             ],
-            "bunny_waf_rate_limit_rules": [
+            "bunny.waf_rate_limit_rules": [
                 {
                     "ref": "API protection",
                     "action": "block",
@@ -50,7 +50,7 @@ class TestBN009CrossPhaseDupRef:
 
     def test_unique_refs_across_phases_ok(self):
         rules_data = {
-            "bunny_waf_custom_rules": [
+            "bunny.waf_custom_rules": [
                 {
                     "ref": "block sqli",
                     "action": "block",
@@ -59,7 +59,7 @@ class TestBN009CrossPhaseDupRef:
                     "conditions": [{"variable": "request_body", "operator": "detect_sqli"}],
                 },
             ],
-            "bunny_waf_rate_limit_rules": [
+            "bunny.waf_rate_limit_rules": [
                 {
                     "ref": "api throttle",
                     "action": "block",
@@ -82,7 +82,7 @@ class TestBN009CrossPhaseDupRef:
     def test_within_phase_dup_still_bn002(self):
         """Same ref within a phase triggers BN002, not BN009."""
         rules_data = {
-            "bunny_waf_custom_rules": [
+            "bunny.waf_custom_rules": [
                 {
                     "ref": "same",
                     "action": "log",
@@ -122,7 +122,7 @@ class TestBN119RegexLeadingWildcard:
                 {"variable": "request_uri", "operator": "rx", "value": ".*/admin"},
             ],
         }
-        results = validate_rules([rule], phase="bunny_waf_custom_rules")
+        results = validate_rules([rule], phase="bunny.waf_custom_rules")
         assert_lint(results, "BN119")
 
     def test_dotplus_prefix_warns(self):
@@ -135,7 +135,7 @@ class TestBN119RegexLeadingWildcard:
                 {"variable": "request_uri", "operator": "rx", "value": ".+admin"},
             ],
         }
-        results = validate_rules([rule], phase="bunny_waf_custom_rules")
+        results = validate_rules([rule], phase="bunny.waf_custom_rules")
         assert_lint(results, "BN119")
 
     def test_anchored_dotstar_ok(self):
@@ -149,7 +149,7 @@ class TestBN119RegexLeadingWildcard:
                 {"variable": "request_uri", "operator": "rx", "value": "^admin"},
             ],
         }
-        results = validate_rules([rule], phase="bunny_waf_custom_rules")
+        results = validate_rules([rule], phase="bunny.waf_custom_rules")
         assert_no_lint(results, "BN119")
 
     def test_no_leading_wildcard_ok(self):
@@ -162,7 +162,7 @@ class TestBN119RegexLeadingWildcard:
                 {"variable": "request_uri", "operator": "rx", "value": "/admin/[0-9]+"},
             ],
         }
-        results = validate_rules([rule], phase="bunny_waf_custom_rules")
+        results = validate_rules([rule], phase="bunny.waf_custom_rules")
         assert_no_lint(results, "BN119")
 
     def test_non_rx_operator_not_checked(self):
@@ -175,7 +175,7 @@ class TestBN119RegexLeadingWildcard:
                 {"variable": "request_uri", "operator": "contains", "value": ".*admin"},
             ],
         }
-        results = validate_rules([rule], phase="bunny_waf_custom_rules")
+        results = validate_rules([rule], phase="bunny.waf_custom_rules")
         assert_no_lint(results, "BN119")
 
 
@@ -210,32 +210,32 @@ def _edge_rule(
 class TestBN713UrlPatternFormat:
     def test_pattern_without_slash_or_http_rejected(self):
         rule = _edge_rule(["admin"])
-        results = validate_rules([rule], phase="bunny_edge_rules")
+        results = validate_rules([rule], phase="bunny.edge_rules")
         assert_lint(results, "BN713")
 
     def test_slash_prefix_ok(self):
         rule = _edge_rule(["/admin", "/api/*"])
-        results = validate_rules([rule], phase="bunny_edge_rules")
+        results = validate_rules([rule], phase="bunny.edge_rules")
         assert_no_lint(results, "BN713")
 
     def test_http_prefix_ok(self):
         rule = _edge_rule(["http://*", "https://example.com/*"])
-        results = validate_rules([rule], phase="bunny_edge_rules")
+        results = validate_rules([rule], phase="bunny.edge_rules")
         assert_no_lint(results, "BN713")
 
     def test_wildcard_prefix_ok(self):
         rule = _edge_rule(["*"])
-        results = validate_rules([rule], phase="bunny_edge_rules")
+        results = validate_rules([rule], phase="bunny.edge_rules")
         assert_no_lint(results, "BN713")
 
     def test_lua_pattern_bypasses_check(self):
         rule = _edge_rule(["pattern:^admin$"])
-        results = validate_rules([rule], phase="bunny_edge_rules")
+        results = validate_rules([rule], phase="bunny.edge_rules")
         assert_no_lint(results, "BN713")
 
     def test_non_url_trigger_not_checked(self):
         rule = _edge_rule(["US"], trigger_type="country_code")
-        results = validate_rules([rule], phase="bunny_edge_rules")
+        results = validate_rules([rule], phase="bunny.edge_rules")
         assert_no_lint(results, "BN713")
 
 
@@ -250,7 +250,7 @@ class TestBN715RedirectStatusCode:
             action_parameter_1="https://example.com/new",
             action_parameter_2="200",
         )
-        results = validate_rules([rule], phase="bunny_edge_rules")
+        results = validate_rules([rule], phase="bunny.edge_rules")
         assert_lint(results, "BN715")
 
     def test_status_404_rejected(self):
@@ -260,7 +260,7 @@ class TestBN715RedirectStatusCode:
             action_parameter_1="https://example.com/new",
             action_parameter_2="404",
         )
-        results = validate_rules([rule], phase="bunny_edge_rules")
+        results = validate_rules([rule], phase="bunny.edge_rules")
         assert_lint(results, "BN715")
 
     def test_status_301_ok(self):
@@ -270,7 +270,7 @@ class TestBN715RedirectStatusCode:
             action_parameter_1="https://example.com/new",
             action_parameter_2="301",
         )
-        results = validate_rules([rule], phase="bunny_edge_rules")
+        results = validate_rules([rule], phase="bunny.edge_rules")
         assert_no_lint(results, "BN715")
 
     def test_status_302_ok(self):
@@ -280,7 +280,7 @@ class TestBN715RedirectStatusCode:
             action_parameter_1="https://example.com/new",
             action_parameter_2="302",
         )
-        results = validate_rules([rule], phase="bunny_edge_rules")
+        results = validate_rules([rule], phase="bunny.edge_rules")
         assert_no_lint(results, "BN715")
 
     def test_non_numeric_rejected(self):
@@ -290,7 +290,7 @@ class TestBN715RedirectStatusCode:
             action_parameter_1="https://example.com/new",
             action_parameter_2="redirect-me",
         )
-        results = validate_rules([rule], phase="bunny_edge_rules")
+        results = validate_rules([rule], phase="bunny.edge_rules")
         assert_lint(results, "BN715")
 
     def test_non_redirect_action_not_checked(self):
@@ -301,7 +301,7 @@ class TestBN715RedirectStatusCode:
             action_parameter_1="X-Cache",
             action_parameter_2="HIT",
         )
-        results = validate_rules([rule], phase="bunny_edge_rules")
+        results = validate_rules([rule], phase="bunny.edge_rules")
         assert_no_lint(results, "BN715")
 
     def test_empty_param2_handled_by_bn706(self):
@@ -312,6 +312,6 @@ class TestBN715RedirectStatusCode:
             action_parameter_1="https://example.com/new",
             action_parameter_2="",
         )
-        results = validate_rules([rule], phase="bunny_edge_rules")
+        results = validate_rules([rule], phase="bunny.edge_rules")
         assert_lint(results, "BN706")
         assert_no_lint(results, "BN715")

@@ -8,8 +8,8 @@ import octorules_bunny  # noqa: F401 — triggers __init__.py registration
 
 
 def test_pullzone_security_format_registered():
-    assert "bunny_pullzone_security" in _format_extensions
+    assert "bunny.pullzone_security" in _format_extensions
 
 
 def test_pullzone_security_apply_registered():
-    assert "bunny_pullzone_security" in _apply_extensions
+    assert "bunny.pullzone_security" in _apply_extensions
