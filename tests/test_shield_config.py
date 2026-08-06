@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock
 
+import pytest
 from octorules.provider.base import Scope
 
 from octorules_bunny._shield_config import (
@@ -1082,3 +1083,18 @@ class TestExtremeSensitivity:
         from octorules_bunny._enums import SENSITIVITY
 
         assert "extreme" not in SENSITIVITY
+
+
+class TestWafExecutionModeIsStrict:
+    """The old inline map defaulted unknown values to 0 (log), so a typo in
+    waf.execution_mode silently downgraded a blocking WAF to log-only."""
+
+    def test_typo_raises_instead_of_defaulting_to_log(self):
+        from octorules.config import ConfigError
+
+        with pytest.raises(ConfigError, match="invalid waf execution_mode 'blck'"):
+            denormalize_waf_settings({"execution_mode": "blck"})
+
+    def test_valid_values_round_trip(self):
+        assert denormalize_waf_settings({"execution_mode": "block"}) == {"wafExecutionMode": 1}
+        assert denormalize_waf_settings({"execution_mode": "log"}) == {"wafExecutionMode": 0}

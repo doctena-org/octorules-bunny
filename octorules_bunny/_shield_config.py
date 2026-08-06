@@ -26,6 +26,7 @@ from octorules_bunny._enums import (
     DDOS_EXECUTION_MODE,
     DDOS_SENSITIVITY,
     SENSITIVITY,
+    WAF_EXECUTION_MODE,
 )
 
 log = logging.getLogger(__name__)
@@ -82,11 +83,9 @@ def normalize_shield_config(
         }
 
     # WAF settings — global switches, learning mode, body limits, engine config
-    # WAFExecutionMode: 0=Log, 1=Block (different from the general EXECUTION_MODE)
-    _WAF_EXEC = {0: "log", 1: "block"}
     result["waf"] = {
         "enabled": bool(shield_zone.get("wafEnabled", False)),
-        "execution_mode": _WAF_EXEC.get(shield_zone.get("wafExecutionMode", 0), "log"),
+        "execution_mode": WAF_EXECUTION_MODE.resolve(shield_zone.get("wafExecutionMode", 0)),
         "learning_mode": bool(shield_zone.get("learningMode", False)),
         "learning_mode_until": shield_zone.get("learningModeUntil", ""),
         "request_body_limit_action": shield_zone.get("wafRequestBodyLimitAction", 0),
@@ -178,11 +177,12 @@ def denormalize_waf_settings(config: dict) -> dict:
     ``learning_mode_until`` is read-only (set by the API when learning
     mode is enabled) and is excluded from the denormalized output.
     """
-    # WAFExecutionMode: "log"->0, "block"->1
-    _WAF_EXEC_REV = {"log": 0, "block": 1}
     _MAP = {
         "enabled": ("wafEnabled", lambda v: v),
-        "execution_mode": ("wafExecutionMode", lambda v: _WAF_EXEC_REV.get(v, 0)),
+        # The old inline map defaulted unknown values to 0 (log), so a typo
+        # in execution_mode silently downgraded a blocking WAF to log-only.
+        # Strict unresolve raises ConfigError instead.
+        "execution_mode": ("wafExecutionMode", WAF_EXECUTION_MODE.unresolve),
         "learning_mode": ("learningMode", lambda v: v),
         "request_body_limit_action": ("wafRequestBodyLimitAction", lambda v: v),
         "response_body_limit_action": ("wafResponseBodyLimitAction", lambda v: v),

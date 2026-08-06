@@ -303,6 +303,8 @@ COUNTER_KEY = EnumMap(
 # whose 2 is not an API value at all.
 BOT_EXECUTION_MODE = EnumMap({0: "log_only", 1: "challenge"}, label="bot_detection execution_mode")
 DDOS_EXECUTION_MODE = EnumMap({0: "log", 1: "block"}, label="ddos execution_mode")
+# Shield OpenAPI, WAFExecutionMode: "0 = Log, 1 = Block".
+WAF_EXECUTION_MODE = EnumMap({0: "log", 1: "block"}, label="waf execution_mode")
 
 # Bot detection sensitivity: the Shield OpenAPI `BotDetectionSensitivity`
 # schema is 0-3 only (Off/Low/Medium/High).
