@@ -293,7 +293,7 @@ class TestApplyHook:
         zp = MagicMock()
         plan = ShieldConfigPlan(
             changes=[
-                ShieldConfigChange("bot_detection", "execution_mode", "log", "block"),
+                ShieldConfigChange("bot_detection", "execution_mode", "log_only", "challenge"),
                 ShieldConfigChange("bot_detection", "ip_sensitivity", "low", "high"),
             ]
         )
@@ -349,7 +349,7 @@ class TestApplyHook:
         zp = MagicMock()
         plan = ShieldConfigPlan(
             changes=[
-                ShieldConfigChange("bot_detection", "execution_mode", "log", "block"),
+                ShieldConfigChange("bot_detection", "execution_mode", "log_only", "challenge"),
                 ShieldConfigChange("ddos", "shield_sensitivity", "low", "high"),
             ]
         )
@@ -371,7 +371,7 @@ class TestShieldConfigFormatter:
         fmt = ShieldConfigFormatter()
         plan = ShieldConfigPlan(
             changes=[
-                ShieldConfigChange("bot_detection", "execution_mode", "log", "block"),
+                ShieldConfigChange("bot_detection", "execution_mode", "log_only", "challenge"),
                 ShieldConfigChange("ddos", "shield_sensitivity", "low", "high"),
             ]
         )
@@ -379,8 +379,8 @@ class TestShieldConfigFormatter:
         assert len(lines) == 2
         # First line — bot_detection field
         assert "bot_detection.execution_mode" in lines[0]
-        assert "'log'" in lines[0]
-        assert "'block'" in lines[0]
+        assert "'log_only'" in lines[0]
+        assert "'challenge'" in lines[0]
         assert lines[0].startswith("  ~ ")
         # Second line — ddos field
         assert "ddos.shield_sensitivity" in lines[1]
@@ -405,7 +405,7 @@ class TestShieldConfigFormatter:
         fmt = ShieldConfigFormatter()
         plan = ShieldConfigPlan(
             changes=[
-                ShieldConfigChange("bot_detection", "execution_mode", "log", "block"),
+                ShieldConfigChange("bot_detection", "execution_mode", "log_only", "challenge"),
             ]
         )
         lines = fmt.format_text([plan], use_color=True)
@@ -420,7 +420,7 @@ class TestShieldConfigFormatter:
         fmt = ShieldConfigFormatter()
         plan = ShieldConfigPlan(
             changes=[
-                ShieldConfigChange("bot_detection", "execution_mode", "log", "block"),
+                ShieldConfigChange("bot_detection", "execution_mode", "log_only", "challenge"),
                 ShieldConfigChange("ddos", "challenge_window", 300, 600),
             ]
         )
@@ -431,8 +431,8 @@ class TestShieldConfigFormatter:
         assert len(changes) == 2
         # First change
         assert changes[0]["field"] == "bot_detection.execution_mode"
-        assert changes[0]["current"] == "log"
-        assert changes[0]["desired"] == "block"
+        assert changes[0]["current"] == "log_only"
+        assert changes[0]["desired"] == "challenge"
         # Second change
         assert changes[1]["field"] == "ddos.challenge_window"
         assert changes[1]["current"] == 300
@@ -454,7 +454,7 @@ class TestShieldConfigFormatter:
     def test_format_json_multiple_plans(self):
         fmt = ShieldConfigFormatter()
         plan1 = ShieldConfigPlan(
-            changes=[ShieldConfigChange("bot_detection", "execution_mode", "log", "block")]
+            changes=[ShieldConfigChange("bot_detection", "execution_mode", "log_only", "challenge")]
         )
         plan2 = ShieldConfigPlan(
             changes=[ShieldConfigChange("managed_rules", "disabled", ["1"], ["1", "2"])]
@@ -470,7 +470,7 @@ class TestShieldConfigFormatter:
         fmt = ShieldConfigFormatter()
         plan = ShieldConfigPlan(
             changes=[
-                ShieldConfigChange("bot_detection", "execution_mode", "log", "block"),
+                ShieldConfigChange("bot_detection", "execution_mode", "log_only", "challenge"),
                 ShieldConfigChange("ddos", "shield_sensitivity", "low", "high"),
             ]
         )
@@ -479,8 +479,8 @@ class TestShieldConfigFormatter:
         # Markdown table rows with ~ prefix
         assert lines[0].startswith("| ~ |")
         assert "bot_detection.execution_mode" in lines[0]
-        assert "'log'" in lines[0]
-        assert "'block'" in lines[0]
+        assert "'log_only'" in lines[0]
+        assert "'challenge'" in lines[0]
         assert lines[1].startswith("| ~ |")
         assert "ddos.shield_sensitivity" in lines[1]
 
@@ -516,7 +516,7 @@ class TestShieldConfigFormatter:
         fmt = ShieldConfigFormatter()
         plan = ShieldConfigPlan(
             changes=[
-                ShieldConfigChange("bot_detection", "execution_mode", "log", "block"),
+                ShieldConfigChange("bot_detection", "execution_mode", "log_only", "challenge"),
                 ShieldConfigChange("ddos", "shield_sensitivity", "low", "high"),
             ]
         )

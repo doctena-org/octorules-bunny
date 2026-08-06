@@ -1,6 +1,7 @@
 """Tests for Bunny Shield enum maps."""
 
 import pytest
+from octorules.config import ConfigError
 
 from octorules_bunny._enums import (
     ACCESS_LIST_ACTION,
@@ -74,9 +75,24 @@ class TestEnumMapClass:
         em = EnumMap({1: "block", 2: "log"})
         assert em.unresolve("block") == 1
 
-    def test_unresolve_unknown_str_returns_str(self):
+    def test_unresolve_unknown_str_raises(self):
+        """unresolve reads user config on its way to the API: an unknown
+        name must fail with the valid names listed, not reach the wire as
+        a string (or, before the rename fixes, as a wrong wire value)."""
+        em = EnumMap({1: "block"}, label="test action")
+        with pytest.raises(ConfigError, match=r"invalid test action 'unknown' \(valid: block\)"):
+            em.unresolve("unknown")
+
+    def test_unresolve_unknown_int_raises(self):
         em = EnumMap({1: "block"})
-        assert em.unresolve("unknown") == "unknown"
+        with pytest.raises(ConfigError):
+            em.unresolve(7)
+
+    def test_unresolve_bool_raises(self):
+        """True is an int subclass and would otherwise pass as wire value 1."""
+        em = EnumMap({1: "block"})
+        with pytest.raises(ConfigError):
+            em.unresolve(True)
 
     def test_unresolve_passthrough_int(self):
         em = EnumMap({1: "block"})
@@ -100,7 +116,8 @@ class TestEnumMapClass:
         em = EnumMap({})
         assert len(em) == 0
         assert em.resolve(1) == "1"
-        assert em.unresolve("x") == "x"
+        with pytest.raises(ConfigError):
+            em.unresolve("x")
         assert list(em) == []
 
     def test_repr(self):

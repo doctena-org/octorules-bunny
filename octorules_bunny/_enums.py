@@ -1,9 +1,19 @@
 """Bidirectional enum maps for the Bunny Shield WAF API.
 
 Every ``EnumMap`` wraps a single ``{int: str}`` mapping and exposes
-``.resolve()`` (int → str) and ``.unresolve()`` (str → int).  Unknown
-values are kept as-is and flagged by the BN1xx lint rules.
+``.resolve()`` (int → str) and ``.unresolve()`` (str → int).  The two
+directions treat unknown values differently on purpose:
+
+- ``resolve()`` reads **Bunny's** data, so an unknown wire value passes
+  through as a string — Bunny adding an enum value server-side must not
+  crash ``dump`` or ``plan`` on a config Bunny itself considers valid.
+- ``unresolve()`` reads **user** config on its way to the API, so an
+  unknown name raises ``ConfigError`` naming the valid values — the
+  alternative was sending the raw string to Bunny and failing with an
+  opaque API error (or, before the lint rules run, not failing at all).
 """
+
+from octorules.config import ConfigError
 
 
 # ---------------------------------------------------------------------------
@@ -22,11 +32,12 @@ class EnumMap:
         list(ACTION)             # ["block", "log"]
     """
 
-    __slots__ = ("_fwd", "_rev")
+    __slots__ = ("_fwd", "_rev", "label")
 
-    def __init__(self, mapping: dict[int, str]) -> None:
+    def __init__(self, mapping: dict[int, str], label: str = "value") -> None:
         self._fwd: dict[int, str] = dict(mapping)
         self._rev: dict[str, int] = {}
+        self.label = label
         for k, v in mapping.items():
             if v in self._rev:
                 raise ValueError(f"duplicate string value {v!r}")
@@ -38,15 +49,19 @@ class EnumMap:
             return value
         return self._fwd.get(value, str(value))
 
-    def unresolve(self, value: str | int) -> int | str:
-        """Resolve a string name to its API enum int, or pass through int.
+    def unresolve(self, value: str | int) -> int:
+        """Resolve a string name to its API enum int.
 
-        Returns ``str`` when *value* is not in the mapping and not already
-        an int — the BN1xx lint rules catch unknown enum values before sync.
+        A raw int is accepted when it is a valid wire value.  Anything
+        else raises ``ConfigError``: this runs on user config on its way
+        to the API, and the lint rules that also catch bad names only
+        help people who ran lint.
         """
-        if isinstance(value, int):
+        if isinstance(value, int) and not isinstance(value, bool) and value in self._fwd:
             return value
-        return self._rev.get(value, value)
+        if isinstance(value, str) and value in self._rev:
+            return self._rev[value]
+        raise ConfigError(f"invalid {self.label} {value!r} (valid: {', '.join(sorted(self._rev))})")
 
     def items(self) -> list[tuple[int, str]]:
         """Return ``(int, str)`` pairs like ``dict.items()``."""
@@ -77,7 +92,8 @@ ACTION = EnumMap(
         3: "challenge",
         4: "allow",
         5: "bypass",
-    }
+    },
+    label="waf rule action",
 )
 
 # Access list actions use a DIFFERENT numbering from WAF rule actions.
@@ -90,7 +106,8 @@ ACCESS_LIST_ACTION = EnumMap(
         3: "challenge",
         4: "log",
         5: "bypass",
-    }
+    },
+    label="access list action",
 )
 
 # ---------------------------------------------------------------------------
@@ -113,7 +130,8 @@ OPERATOR = EnumMap(
         15: "str_eq",
         17: "detect_sqli",
         18: "detect_xss",
-    }
+    },
+    label="operator",
 )
 
 # ---------------------------------------------------------------------------
@@ -147,7 +165,8 @@ VARIABLE = EnumMap(
         23: "response_headers",
         24: "response_status",
         25: "fingerprint",
-    }
+    },
+    label="variable",
 )
 
 # Variables that accept a sub-value (e.g., header name, cookie name, GEO field).
@@ -194,7 +213,8 @@ TRANSFORMATION = EnumMap(
         19: "url_decode",
         20: "url_decode_uni",
         21: "utf8_to_unicode",
-    }
+    },
+    label="transformation",
 )
 
 # ---------------------------------------------------------------------------
@@ -205,7 +225,8 @@ SEVERITY = EnumMap(
         0: "info",
         1: "warning",
         2: "error",
-    }
+    },
+    label="severity",
 )
 
 # ---------------------------------------------------------------------------
@@ -219,7 +240,8 @@ TIMEFRAME = EnumMap(
         300: "5m",
         900: "15m",
         3600: "1h",
-    }
+    },
+    label="timeframe",
 )
 
 # ---------------------------------------------------------------------------
@@ -233,7 +255,8 @@ BLOCKTIME = EnumMap(
         900: "15m",
         1800: "30m",
         3600: "1h",
-    }
+    },
+    label="block_time",
 )
 
 # ---------------------------------------------------------------------------
@@ -247,7 +270,8 @@ ACCESS_LIST_TYPE = EnumMap(
         3: "country",
         4: "organization",
         5: "ja4",
-    }
+    },
+    label="access list type",
 )
 
 # ---------------------------------------------------------------------------
@@ -266,7 +290,8 @@ COUNTER_KEY = EnumMap(
         5: "organization",
         6: "ja4",
         7: "ip_ja4",
-    }
+    },
+    label="counter_key_type",
 )
 
 # ---------------------------------------------------------------------------
@@ -276,17 +301,19 @@ COUNTER_KEY = EnumMap(
 # DDoSExecutionMode is "0 = Log, 1 = Block".  These previously shared one
 # map ({0: off, 1: log, 2: block}) whose names matched neither field and
 # whose 2 is not an API value at all.
-BOT_EXECUTION_MODE = EnumMap({0: "log_only", 1: "challenge"})
-DDOS_EXECUTION_MODE = EnumMap({0: "log", 1: "block"})
+BOT_EXECUTION_MODE = EnumMap({0: "log_only", 1: "challenge"}, label="bot_detection execution_mode")
+DDOS_EXECUTION_MODE = EnumMap({0: "log", 1: "block"}, label="ddos execution_mode")
 
 # Bot detection sensitivity: the Shield OpenAPI `BotDetectionSensitivity`
 # schema is 0-3 only (Off/Low/Medium/High).
-SENSITIVITY = EnumMap({0: "off", 1: "low", 2: "medium", 3: "high"})
+SENSITIVITY = EnumMap({0: "off", 1: "low", 2: "medium", 3: "high"}, label="sensitivity")
 
 # DDoS shield sensitivity: the Shield OpenAPI `DDoSShieldSensitivity`
 # schema is 0-4; level 4 is "Extreme" / Always-On Mode in the dashboard
 # and docs (the API varname for 4 is "Challenge").
-DDOS_SENSITIVITY = EnumMap({0: "off", 1: "low", 2: "medium", 3: "high", 4: "extreme"})
+DDOS_SENSITIVITY = EnumMap(
+    {0: "off", 1: "low", 2: "medium", 3: "high", 4: "extreme"}, label="ddos shield_sensitivity"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -329,7 +356,8 @@ EDGE_ACTION = EnumMap(
         32: "disable_shield_rate_limiting",
         33: "enable_request_coalescing",
         34: "disable_request_coalescing",
-    }
+    },
+    label="edge rule action_type",
 )
 
 # ---------------------------------------------------------------------------
@@ -351,7 +379,8 @@ EDGE_TRIGGER = EnumMap(
         11: "country_state_code",
         12: "origin_retry_attempt_count",
         13: "origin_connection_error",
-    }
+    },
+    label="edge rule trigger type",
 )
 
 # ---------------------------------------------------------------------------
@@ -362,7 +391,8 @@ EDGE_PATTERN_MATCH = EnumMap(
         0: "any",
         1: "all",
         2: "none",
-    }
+    },
+    label="edge rule pattern_matching_type",
 )
 
 # ---------------------------------------------------------------------------
@@ -373,5 +403,6 @@ EDGE_TRIGGER_MATCH = EnumMap(
         0: "any",
         1: "all",
         2: "none",
-    }
+    },
+    label="edge rule trigger_matching_type",
 )
