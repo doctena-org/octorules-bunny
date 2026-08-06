@@ -59,7 +59,7 @@ Suppressed findings are excluded from the report but counted in the summary line
 | [BN007](structure.md#bn007--phase-value-is-not-a-list) | Phase value is not a list | ERROR |
 | [BN009](structure.md#bn009--duplicate-ref-across-different-phases) | Duplicate ref across different phases | INFO |
 | [BN010](structure.md#bn010--invalid-ref-format) | Invalid ref format | ERROR |
-| [BN011](structure.md#bn011--description-exceeds-255-characters) | Description exceeds 255 characters | WARNING |
+| [BN011](structure.md#bn011--description-longer-than-255-chars-octorules-guidance) | Description longer than 255 chars (octorules guidance) | WARNING |
 | [BN100](enums.md#bn100--invalid-action-value) | Invalid action value | ERROR |
 | [BN101](enums.md#bn101--invalid-operator-value) | Invalid operator value | ERROR |
 | [BN102](enums.md#bn102--unknown-variable-value) | Unknown variable value | WARNING |
@@ -100,7 +100,7 @@ Suppressed findings are excluded from the report but counted in the summary line
 | [BN401](condition.md#bn401--condition-missing-operator) | Condition missing 'operator' | ERROR |
 | [BN402](condition.md#bn402--detect_sqlidetect_xss-ignores-value) | detect_sqli/detect_xss operators ignore 'value' field | WARNING |
 | [BN403](condition.md#bn403--duplicate-condition-in-chain) | Duplicate condition in chained conditions | WARNING |
-| [BN404](condition.md#bn404--chained-conditions-exceed-10) | Chained conditions exceed 10 | WARNING |
+| [BN404](condition.md#bn404--more-than-10-chained-conditions-octorules-guidance) | More than 10 chained conditions (octorules guidance) | WARNING |
 | [BN500](cross-rule.md#bn500--duplicate-conditions-across-rules) | Duplicate conditions across rules in phase | WARNING |
 | [BN501](cross-rule.md#bn501--rule-count-exceeds-plan-tier-limit) | Rule count may exceed plan tier limit | WARNING |
 | [BN502](cross-rule.md#bn502--conflicting-access-lists) | Conflicting access lists (ip/cidr/country/asn/ja4 overlap with different actions) | WARNING |
@@ -122,7 +122,7 @@ Suppressed findings are excluded from the report but counted in the summary line
 | [BN708](edge-rule.md#bn708--invalid-country-code-in-country_code-trigger) | Invalid country code in country_code trigger | ERROR |
 | [BN709](edge-rule.md#bn709--invalid-ipcidr-in-remote_ip-trigger) | Invalid IP/CIDR in remote_ip trigger | ERROR |
 | [BN710](edge-rule.md#bn710--invalid-http-method-in-request_method-trigger) | Invalid HTTP method in request_method trigger | ERROR |
-| [BN711](edge-rule.md#bn711--status-code-out-of-range-in-status_code-trigger) | Status code out of range (100-900) in status_code trigger | ERROR |
+| [BN711](edge-rule.md#bn711--status-code-outside-100-900-octorules-guidance) | Status code outside 100-900 in status_code trigger (octorules guidance) | WARNING |
 | [BN712](edge-rule.md#bn712--malformed-lua-pattern) | Malformed Lua pattern (pattern: prefix) | ERROR |
 | [BN713](edge-rule.md#bn713--url-trigger-pattern-format) | URL trigger pattern must start with /, http, or * | WARNING |
 | [BN715](edge-rule.md#bn715--redirect-status-code-range) | Redirect status code must be 300-399 | ERROR |

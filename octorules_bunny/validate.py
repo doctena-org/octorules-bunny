@@ -146,7 +146,9 @@ _CASE_SENSITIVE_OPERATORS = frozenset(
 )
 # Literal-text operators where leading / in path matters
 _LITERAL_TEXT_OPERATORS = frozenset({"eq", "str_eq", "str_match", "begins_with", "contains"})
+# octorules guidance — Bunny's spec declares no length constraints at all.
 _MAX_DESCRIPTION_LEN = 255
+# octorules guidance — Bunny publishes no per-rule condition count.
 _MAX_CHAINED_CONDITIONS = 10
 
 # Catch-all CIDR ranges (match everything) — flagged by BN311 and skipped
@@ -744,7 +746,8 @@ def _validate_custom_rule(rule: dict, results: list[LintResult], phase: str) -> 
             _result(
                 "BN011",
                 Severity.WARNING,
-                f"Description exceeds {_MAX_DESCRIPTION_LEN} characters ({len(desc)})",
+                f"Description is {len(desc)} characters (octorules guidance"
+                f" threshold: {_MAX_DESCRIPTION_LEN}; Bunny publishes no limit)",
                 phase,
                 ref,
                 field="description",
@@ -820,8 +823,8 @@ def _validate_custom_rule(rule: dict, results: list[LintResult], phase: str) -> 
             _result(
                 "BN404",
                 Severity.WARNING,
-                f"Rule has {len(conditions)} conditions"
-                f" (exceeds limit of {_MAX_CHAINED_CONDITIONS})",
+                f"Rule has {len(conditions)} conditions (octorules guidance"
+                f" threshold: {_MAX_CHAINED_CONDITIONS}; Bunny publishes no limit)",
                 phase,
                 ref,
                 field="conditions",
@@ -1589,9 +1592,10 @@ def _validate_edge_rule(rule: dict, results: list[LintResult], phase: str) -> No
                         results.append(
                             _result(
                                 "BN711",
-                                Severity.ERROR,
-                                f"{p_prefix}: status code {p!r} must be"
-                                f" an integer between 100 and 900",
+                                Severity.WARNING,
+                                f"{p_prefix}: status code {p!r} is not an"
+                                f" integer between 100 and 900 (octorules"
+                                f" guidance; Bunny publishes no range)",
                                 phase,
                                 ref,
                                 field="triggers",
@@ -1609,7 +1613,8 @@ def _validate_edge_rule(rule: dict, results: list[LintResult], phase: str) -> No
             _result(
                 "BN011",
                 Severity.WARNING,
-                f"Description exceeds {_MAX_DESCRIPTION_LEN} characters ({len(desc)})",
+                f"Description is {len(desc)} characters (octorules guidance"
+                f" threshold: {_MAX_DESCRIPTION_LEN}; Bunny publishes no limit)",
                 phase,
                 ref,
                 field="description",

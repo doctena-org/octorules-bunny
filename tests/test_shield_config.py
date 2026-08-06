@@ -35,13 +35,13 @@ def _scope(zone_id: str = "999") -> Scope:
 class TestNormalizeShieldConfig:
     def test_bot_detection(self):
         bot = {
-            "executionMode": 2,
+            "executionMode": 1,
             "requestIntegrity": {"sensitivity": 2},
             "ipAddress": {"sensitivity": 1},
             "browserFingerprint": {"sensitivity": 3, "complexEnabled": True},
         }
         result = normalize_shield_config({}, bot)
-        assert result["bot_detection"]["execution_mode"] == "block"
+        assert result["bot_detection"]["execution_mode"] == "challenge"
         assert result["bot_detection"]["request_integrity_sensitivity"] == "medium"
         assert result["bot_detection"]["ip_sensitivity"] == "low"
         assert result["bot_detection"]["fingerprint_sensitivity"] == "high"
@@ -55,7 +55,9 @@ class TestNormalizeShieldConfig:
         }
         result = normalize_shield_config(zone, {})
         assert result["ddos"]["shield_sensitivity"] == "medium"
-        assert result["ddos"]["execution_mode"] == "log"
+        # Shield OpenAPI, DDoSExecutionMode: "0 = Log, 1 = Block".  The old
+        # shared map called 1 "log", so dumps misnamed every blocking zone.
+        assert result["ddos"]["execution_mode"] == "block"
         assert result["ddos"]["challenge_window"] == 300
 
     def test_both(self):
@@ -78,14 +80,14 @@ class TestNormalizeShieldConfig:
 class TestDenormalizeBotConfig:
     def test_round_trip(self):
         config = {
-            "execution_mode": "block",
+            "execution_mode": "challenge",
             "request_integrity_sensitivity": "medium",
             "ip_sensitivity": "low",
             "fingerprint_sensitivity": "high",
             "complex_fingerprinting": True,
         }
         result = denormalize_bot_config(config)
-        assert result["executionMode"] == 2
+        assert result["executionMode"] == 1
         assert result["requestIntegrity"] == {"sensitivity": 2}
         assert result["ipAddress"] == {"sensitivity": 1}
         assert result["browserFingerprint"] == {"sensitivity": 3, "complexEnabled": True}
@@ -100,7 +102,9 @@ class TestDenormalizeDDoSConfig:
         }
         result = denormalize_ddos_config(config)
         assert result["dDoSShieldSensitivity"] == 2
-        assert result["dDoSExecutionMode"] == 2
+        # "block" is 1 on the wire; the old shared map sent 2, which is not a
+        # DDoSExecutionMode value at all.
+        assert result["dDoSExecutionMode"] == 1
         assert result["dDoSChallengeWindow"] == 300
 
 
@@ -247,7 +251,7 @@ class TestFinalizeHook:
 
         shield_zone = {
             "dDoSShieldSensitivity": 2,
-            "dDoSExecutionMode": 2,
+            "dDoSExecutionMode": 1,
             "dDoSChallengeWindow": 300,
         }
         desired_config = {
@@ -573,7 +577,7 @@ class TestValidateExtension:
     def test_valid_config(self):
         desired = {
             "bunny.shield_config": {
-                "bot_detection": {"execution_mode": "block", "ip_sensitivity": "medium"},
+                "bot_detection": {"execution_mode": "challenge", "ip_sensitivity": "medium"},
                 "ddos": {
                     "execution_mode": "log",
                     "shield_sensitivity": "high",

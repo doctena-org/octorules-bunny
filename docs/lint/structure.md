@@ -224,11 +224,11 @@ Custom WAF and rate limit rule names must match `[a-zA-Z0-9 ]+` — alphanumeric
   - ref: Block admin
 ```
 
-### BN011 — Description exceeds 255 characters
+### BN011 — Description longer than 255 chars (octorules guidance)
 
 **Severity:** WARNING
 
-Rule descriptions longer than 255 characters may be truncated by the API.
+The 255-character threshold is octorules guidance — Bunny's spec declares no length constraint. Very long descriptions are unwieldy in dashboards and diffs.
 
 **Triggers on:** A `description` field with more than 255 characters.
 

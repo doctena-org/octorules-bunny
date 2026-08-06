@@ -85,10 +85,10 @@ Two conditions within the same rule are identical. Since conditions are AND-comb
 
 **Fix:** Remove the duplicate.
 
-### BN404 — Chained conditions exceed 10
+### BN404 — More than 10 chained conditions (octorules guidance)
 
 **Severity:** WARNING
 
-A rule has more than 10 conditions. This may exceed API limits. Consider splitting into separate rules.
+A rule has more than 10 conditions. The threshold is octorules guidance — Bunny publishes no per-rule condition count — and rules this wide are usually clearer split apart.
 
 ---

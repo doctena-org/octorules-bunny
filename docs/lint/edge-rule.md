@@ -276,11 +276,11 @@ triggers:
 
 **Fix:** Use uppercase standard HTTP methods.
 
-### BN711 — Status code out of range in status_code trigger
+### BN711 — Status code outside 100-900 (octorules guidance)
 
-**Severity:** ERROR
+**Severity:** WARNING
 
-A `status_code` trigger pattern is not an integer between 100 and 900 (enforced by the Bunny API).
+A `status_code` trigger pattern is not an integer between 100 and 900. The range is octorules guidance — Bunny publishes no constraint for this trigger — and a code outside it will simply never match a real response.
 
 **Triggers on:**
 
@@ -293,7 +293,7 @@ triggers:
       - "forbidden"    # non-numeric
 ```
 
-**Fix:** Use a numeric HTTP status code between 100 and 900.
+**Fix:** Use a real HTTP status code.
 
 ### BN712 — Malformed Lua pattern
 

@@ -22,8 +22,9 @@ from octorules_bunny._config_base import (
     section_desired,
 )
 from octorules_bunny._enums import (
+    BOT_EXECUTION_MODE,
+    DDOS_EXECUTION_MODE,
     DDOS_SENSITIVITY,
-    EXECUTION_MODE,
     SENSITIVITY,
 )
 
@@ -52,7 +53,7 @@ def normalize_shield_config(
         ip = bot_config.get("ipAddress", {})
         bf = bot_config.get("browserFingerprint", {})
         result["bot_detection"] = {
-            "execution_mode": EXECUTION_MODE.resolve(bot_config.get("executionMode", 0)),
+            "execution_mode": BOT_EXECUTION_MODE.resolve(bot_config.get("executionMode", 0)),
             "request_integrity_sensitivity": SENSITIVITY.resolve(
                 ri.get("sensitivity", 0) if isinstance(ri, dict) else 0
             ),
@@ -76,7 +77,7 @@ def normalize_shield_config(
             "shield_sensitivity": DDOS_SENSITIVITY.resolve(
                 shield_zone.get("dDoSShieldSensitivity", 0)
             ),
-            "execution_mode": EXECUTION_MODE.resolve(shield_zone.get("dDoSExecutionMode", 0)),
+            "execution_mode": DDOS_EXECUTION_MODE.resolve(shield_zone.get("dDoSExecutionMode", 0)),
             "challenge_window": shield_zone.get("dDoSChallengeWindow", 0),
         }
 
@@ -130,7 +131,7 @@ def denormalize_bot_config(config: dict) -> dict:
     """
     result: dict = {}
     if "execution_mode" in config:
-        result["executionMode"] = EXECUTION_MODE.unresolve(config["execution_mode"])
+        result["executionMode"] = BOT_EXECUTION_MODE.unresolve(config["execution_mode"])
     if "request_integrity_sensitivity" in config:
         result["requestIntegrity"] = {
             "sensitivity": SENSITIVITY.unresolve(config["request_integrity_sensitivity"])
@@ -161,7 +162,7 @@ def denormalize_ddos_config(config: dict) -> dict:
             "dDoSShieldSensitivity",
             lambda v: DDOS_SENSITIVITY.unresolve(v),
         ),
-        "execution_mode": ("dDoSExecutionMode", lambda v: EXECUTION_MODE.unresolve(v)),
+        "execution_mode": ("dDoSExecutionMode", lambda v: DDOS_EXECUTION_MODE.unresolve(v)),
         "challenge_window": ("dDoSChallengeWindow", lambda v: v),
     }
     result: dict = {}
@@ -406,7 +407,8 @@ def _apply_managed_rules(zp, plans, scope, provider):
 # ---------------------------------------------------------------------------
 # Validate extension
 # ---------------------------------------------------------------------------
-_VALID_EXECUTION_MODES = frozenset(EXECUTION_MODE)
+_VALID_BOT_EXECUTION_MODES = frozenset(BOT_EXECUTION_MODE)
+_VALID_DDOS_EXECUTION_MODES = frozenset(DDOS_EXECUTION_MODE)
 _VALID_SENSITIVITIES = frozenset(SENSITIVITY)
 _VALID_DDOS_SENSITIVITIES = frozenset(DDOS_SENSITIVITY)
 
@@ -418,7 +420,7 @@ def _validate_shield_config(desired, zone_name, errors, lines):
         bot = config.get("bot_detection", {})
         if isinstance(bot, dict):
             em = bot.get("execution_mode", "")
-            if em and em not in _VALID_EXECUTION_MODES:
+            if em and em not in _VALID_BOT_EXECUTION_MODES:
                 errors.append(
                     f"  {zone_name}/bunny_shield_config: invalid"
                     f" bot_detection.execution_mode {em!r}"
@@ -443,7 +445,7 @@ def _validate_shield_config(desired, zone_name, errors, lines):
         ddos = config.get("ddos", {})
         if isinstance(ddos, dict):
             em = ddos.get("execution_mode", "")
-            if em and em not in _VALID_EXECUTION_MODES:
+            if em and em not in _VALID_DDOS_EXECUTION_MODES:
                 errors.append(
                     f"  {zone_name}/bunny_shield_config: invalid ddos.execution_mode {em!r}"
                 )

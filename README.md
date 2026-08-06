@@ -154,7 +154,7 @@ bunny:
 
   shield_config:
     bot_detection:
-      execution_mode: log
+      execution_mode: log_only
       request_integrity_sensitivity: medium
       ip_sensitivity: medium
       fingerprint_sensitivity: high

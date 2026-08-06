@@ -13,7 +13,9 @@ BN006 = RuleMeta("BN006", "structure", "Rule entry is not a dict", Severity.ERRO
 BN007 = RuleMeta("BN007", "structure", "Phase value is not a list", Severity.ERROR)
 BN009 = RuleMeta("BN009", "structure", "Duplicate ref across different phases", Severity.INFO)
 BN010 = RuleMeta("BN010", "structure", "Invalid ref format (must be [a-zA-Z0-9 ]+)", Severity.ERROR)
-BN011 = RuleMeta("BN011", "structure", "Description exceeds 255 characters", Severity.WARNING)
+BN011 = RuleMeta(
+    "BN011", "structure", "Description longer than 255 chars (octorules guidance)", Severity.WARNING
+)
 
 # BN1xx — Enum validation
 BN100 = RuleMeta("BN100", "action", "Invalid action value", Severity.ERROR)
@@ -136,7 +138,9 @@ BN402 = RuleMeta(
 BN403 = RuleMeta(
     "BN403", "condition", "Duplicate condition in chained conditions", Severity.WARNING
 )
-BN404 = RuleMeta("BN404", "condition", "Chained conditions exceed 10", Severity.WARNING)
+BN404 = RuleMeta(
+    "BN404", "condition", "More than 10 chained conditions (octorules guidance)", Severity.WARNING
+)
 
 # BN5xx — Cross-rule
 BN500 = RuleMeta(
@@ -188,8 +192,8 @@ BN710 = RuleMeta(
 BN711 = RuleMeta(
     "BN711",
     "edge_rule",
-    "Status code out of range (100-900) in status_code trigger",
-    Severity.ERROR,
+    "Status code outside 100-900 in status_code trigger (octorules guidance)",
+    Severity.WARNING,
 )
 BN712 = RuleMeta("BN712", "edge_rule", "Malformed Lua pattern (pattern: prefix)", Severity.ERROR)
 BN713 = RuleMeta(

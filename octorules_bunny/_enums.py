@@ -84,6 +84,7 @@ ACTION = EnumMap(
 # Source: GET /shield/shield-zone/{id}/access-lists/enums → AccessListAction
 ACCESS_LIST_ACTION = EnumMap(
     {
+        0: "none",
         1: "allow",
         2: "block",
         3: "challenge",
@@ -271,7 +272,12 @@ COUNTER_KEY = EnumMap(
 # ---------------------------------------------------------------------------
 # Bot detection / DDoS config enum helpers
 # ---------------------------------------------------------------------------
-EXECUTION_MODE = EnumMap({0: "off", 1: "log", 2: "block"})
+# Shield OpenAPI: BotDetectionExecutionMode is "0 = LogOnly, 1 = Challenge";
+# DDoSExecutionMode is "0 = Log, 1 = Block".  These previously shared one
+# map ({0: off, 1: log, 2: block}) whose names matched neither field and
+# whose 2 is not an API value at all.
+BOT_EXECUTION_MODE = EnumMap({0: "log_only", 1: "challenge"})
+DDOS_EXECUTION_MODE = EnumMap({0: "log", 1: "block"})
 
 # Bot detection sensitivity: the Shield OpenAPI `BotDetectionSensitivity`
 # schema is 0-3 only (Off/Low/Medium/High).
