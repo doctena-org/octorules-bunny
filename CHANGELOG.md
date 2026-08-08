@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- `bot_detection.execution_mode` values are `log_only`/`challenge` (Bunny's own
+  enum names). **Rename `off`/`log`/`block` before upgrading** — the old names
+  now fail with a `ConfigError`, and previously `off` silently meant LogOnly on
+  the wire while `block` sent a value the API rejects.
+- An unknown enum name anywhere in bunny config fails with a `ConfigError`
+  naming the field and its valid values, instead of reaching the API raw.
+- **BN711** (status code outside 100–900) is a WARNING and, like **BN404** and
+  **BN011**, says its threshold is octorules guidance.
+
+### Fixed
+- A typo in `waf.execution_mode` silently switched the WAF engine to log-only;
+  it now fails with the valid values.
+- `ddos.execution_mode: block` sent an invalid wire value; it now maps to
+  Bunny's Block.
+- Access lists read back with action `none` (value 0) resolve instead of
+  falling back to `log`.
+
 ## [0.7.0] - 2026-07-26
 
 ### Added
