@@ -5,9 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.8.0] - 2026-08-08
 
 ### Changed
+- Minimum `octorules` dependency: `>=0.33.0`.
 - `bot_detection.execution_mode` values are `log_only`/`challenge` (Bunny's own
   enum names). **Rename `off`/`log`/`block` before upgrading** — the old names
   now fail with a `ConfigError`, and previously `off` silently meant LogOnly on
