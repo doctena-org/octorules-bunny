@@ -15,7 +15,7 @@ authors = [
 ]
 keywords = ["bunny", "bunnynet", "shield", "waf", "rules", "iac", "octorules"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Intended Audience :: System Administrators",
     "Programming Language :: Python :: 3",
