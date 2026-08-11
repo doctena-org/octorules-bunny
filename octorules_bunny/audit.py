@@ -1,27 +1,16 @@
 """Bunny Shield audit extension — extracts IPs from access lists, WAF, and edge rules."""
 
-from octorules.audit import RuleIPInfo
+from octorules.audit import RuleIPInfo, iter_audit_rules
 from octorules.extensions import register_audit_extension
-from octorules.phases import PHASE_BY_NAME
 
 from octorules_bunny._phases import BUNNY_PHASE_NAMES
 
 
 def _extract_ips(rules_data: dict, phase_name: str) -> list[RuleIPInfo]:
     """Extract IP ranges from Bunny Shield rules in *phase_name*."""
-    if phase_name not in BUNNY_PHASE_NAMES:
-        return []
-    if phase_name not in PHASE_BY_NAME:
-        return []
-
-    rules = rules_data.get(phase_name)
-    if not isinstance(rules, list):
-        return []
 
     results: list[RuleIPInfo] = []
-    for rule in rules:
-        if not isinstance(rule, dict):
-            continue
+    for rule in iter_audit_rules(rules_data, phase_name, BUNNY_PHASE_NAMES):
         ref = str(rule.get("ref", ""))
         action = str(rule.get("action", ""))
 
