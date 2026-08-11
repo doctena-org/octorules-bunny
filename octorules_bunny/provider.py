@@ -1037,9 +1037,7 @@ class BunnyShieldProvider:
         raise ConfigError("Lists are not supported by Bunny Shield")
 
     @_wrap_provider_errors
-    def poll_bulk_operation(
-        self, scope: Scope, operation_id: str, *, timeout: float = 120.0
-    ) -> str:
+    def poll_bulk_operation(self, scope: Scope, operation_id: str) -> str:
         """Return 'completed'; Bunny Shield operations are synchronous."""
         return "completed"
 
