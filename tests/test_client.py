@@ -89,18 +89,28 @@ class TestClientInit:
         client.close()
 
     def test_max_connections_keepalive(self):
-        """max_keepalive_connections is half of max_connections (min 20)."""
+        """max_keepalive_connections is half of max_connections."""
         client = BunnyShieldClient("test-key", max_connections=40)
         keepalive = client._http._transport._pool._max_keepalive_connections
         assert keepalive == 20
         client.close()
 
-    def test_max_connections_keepalive_small(self):
-        """For small max_connections, keepalive floor is 20."""
-        client = BunnyShieldClient("test-key", max_connections=20)
-        keepalive = client._http._transport._pool._max_keepalive_connections
-        assert keepalive == 20
-        client.close()
+    def test_keepalive_never_exceeds_max_connections(self):
+        """The pool cannot keep more connections alive than it may open.
+
+        The old max(20, n // 2) form claimed otherwise below 40 connections.
+        httpcore clamped it, so nothing broke, but the configuration said
+        something impossible. No provider path reaches these values today; the
+        constraint is asserted so a future one cannot.
+        """
+        for n in (1, 2, 5, 10, 19, 20, 40, 100):
+            client = BunnyShieldClient("test-key", max_connections=n)
+            pool = client._http._transport._pool
+            assert pool._max_keepalive_connections <= pool._max_connections, (
+                f"keepalive {pool._max_keepalive_connections} exceeds max {n}"
+            )
+            assert pool._max_keepalive_connections >= 1
+            client.close()
 
     def test_no_max_connections_uses_defaults(self):
         """Without max_connections, httpx defaults are used."""

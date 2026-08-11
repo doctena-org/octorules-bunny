@@ -106,9 +106,15 @@ class BunnyShieldClient:
             "timeout": httpx.Timeout(timeout),
         }
         if max_connections is not None:
+            # Keepalive can never exceed the pool it draws from. max(20, n // 2)
+            # says otherwise below 40 connections; httpcore clamps it silently,
+            # so the arithmetic reads as deliberate when it is not. The provider
+            # only ever passes 10 * max_workers with max_workers > 1, so no
+            # current caller reaches a violating value — this makes the invariant
+            # hold by construction rather than by the caller's arithmetic.
             client_kwargs["limits"] = httpx.Limits(
                 max_connections=max_connections,
-                max_keepalive_connections=max(20, max_connections // 2),
+                max_keepalive_connections=min(max_connections, max(1, max_connections // 2)),
             )
         self._http = httpx.Client(**client_kwargs)
         self._max_retries = max_retries
