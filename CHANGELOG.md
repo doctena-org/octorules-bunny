@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- Minimum `octorules` dependency: `>=0.35.0` (for `iter_audit_rules`).
+
 ### Fixed
 - The HTTP pool could be configured with more keepalive connections than
   total connections. httpcore clamped it, so no behaviour changes.
